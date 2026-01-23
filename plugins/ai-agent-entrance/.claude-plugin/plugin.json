@@ -1,0 +1,21 @@
+{
+  "name": "ai-agent-entrance",
+  "version": "1.0.0",
+  "description": "智能路由与知识沉淀 - 自动识别任务类型、推荐最佳开发流程、沉淀可复用知识",
+  "author": {
+    "name": "Larry Yan",
+    "url": "https://github.com/yanlei-chainup"
+  },
+  "repository": "https://github.com/yanlei-chainup/ai-agent-entrance",
+  "license": "MIT",
+  "keywords": [
+    "workflow-routing",
+    "knowledge-management",
+    "compound-engineering",
+    "ai-development",
+    "plan-mode",
+    "bmad",
+    "openspec",
+    "superpowers"
+  ]
+}

@@ -1,0 +1,171 @@
+# ════════════════════════════════════════════════════════════════
+# 工作流路由配置 - workflow-routes.yaml
+# 定义任务类型到开发工具的映射规则和自动安装配置
+# ════════════════════════════════════════════════════════════════
+
+# ────────────────────────────────────────────────────────────────
+# 工具定义（安装和检测命令）
+# ────────────────────────────────────────────────────────────────
+
+tools:
+  superpowers:
+    display_name: "Superpowers"
+    description: "SDD+TDD 工程纪律框架，自动强制测试驱动开发，大幅节省 Token"
+    install_cmd: "claude plugin install superpowers"
+    check_cmd: "claude plugin list | grep -q superpowers"
+    priority: 1  # 如果已安装，优先使用
+    features:
+      - "自动触发 SDD+TDD 流程"
+      - "强制先写测试再实现"
+      - "规范化流程省 Token"
+
+  bmad:
+    display_name: "BMAD"
+    description: "敏捷多角色协作框架，适合新项目完整开发周期"
+    install_cmd: "npx bmad-method install"
+    check_cmd: "test -d .bmad || test -f bmad.config.js"
+    features:
+      - "多角色切换（PM/架构师/开发者）"
+      - "完整敏捷流程"
+      - "文档即代码"
+
+  openspec:
+    display_name: "OpenSpec"
+    description: "变更隔离框架，适合老项目改造和重构"
+    install_cmd: "claude plugin install openspec"
+    check_cmd: "test -d openspec || claude plugin list | grep -q openspec"
+    features:
+      - "变更隔离模式"
+      - "Proposal → Apply → Archive"
+      - "支持回滚"
+
+  speckit:
+    display_name: "SpecKit"
+    description: "规格驱动开发框架，适合需求明确的功能开发"
+    install_cmd: "claude plugin install speckit"
+    check_cmd: "claude plugin list | grep -q speckit"
+    features:
+      - "规格优先"
+      - "严格按 spec 执行"
+      - "GitHub 官方出品"
+
+  plan:
+    display_name: "Plan 模式"
+    description: "Claude Code 内置模式，零配置开箱即用"
+    install_cmd: null  # 无需安装
+    check_cmd: "true"  # 始终可用
+    features:
+      - "零配置"
+      - "快速上手"
+      - "适合小任务"
+
+# ────────────────────────────────────────────────────────────────
+# 路由规则
+# ────────────────────────────────────────────────────────────────
+
+routes:
+  # 规则1：新项目完整开发
+  - name: "新项目开发"
+    match:
+      task_types: ["new_project", "new_feature"]
+      keywords: ["新项目", "从零", "完整流程", "敏捷"]
+    recommend:
+      primary: "bmad"
+      fallback: "plan"
+    tips:
+      - "BMAD 提供完整的敏捷流程"
+      - "从需求分析到代码实现全覆盖"
+
+  # 规则2：老项目优化/重构
+  - name: "老项目改造"
+    match:
+      task_types: ["optimization", "refactor"]
+      keywords: ["优化", "重构", "改造", "迁移"]
+    recommend:
+      primary: "openspec"
+      fallback: "plan"
+    tips:
+      - "OpenSpec 的变更隔离可防止影响现有功能"
+      - "建议先在 proposals/ 目录记录变更意图"
+
+  # 规则3：严格 TDD
+  - name: "TDD 开发"
+    match:
+      task_types: ["tdd"]
+      keywords: ["TDD", "测试驱动", "省Token"]
+    recommend:
+      primary: "superpowers"
+      fallback: "plan"
+    tips:
+      - "Superpowers 强制先写测试再实现"
+      - "安装后自动生效，无需手动调用"
+
+  # 规则4：需求明确的功能
+  - name: "规格驱动开发"
+    match:
+      task_types: []
+      keywords: ["规格", "spec", "需求明确", "详细需求"]
+    recommend:
+      primary: "speckit"
+      fallback: "plan"
+    tips:
+      - "SpecKit 适合需求已经非常明确的场景"
+      - "会产生较多 Markdown 文档"
+
+  # 规则5：Bug 修复和小改动
+  - name: "快速修复"
+    match:
+      task_types: ["bugfix", "research"]
+      keywords: ["bug", "修复", "小改", "调研"]
+    recommend:
+      primary: "plan"
+      fallback: null
+    tips:
+      - "小任务用 Plan 模式即可"
+      - "无需额外工具"
+
+# ────────────────────────────────────────────────────────────────
+# Superpowers 优先规则
+# ────────────────────────────────────────────────────────────────
+
+superpowers_priority:
+  enabled: true
+  description: "如果 Superpowers 已安装，对于开发类任务优先让其接管"
+  applies_to:
+    - "new_project"
+    - "new_feature"
+    - "optimization"
+    - "refactor"
+    - "tdd"
+  message: "✅ Superpowers 已安装，将自动引导 SDD+TDD 流程"
+
+# ────────────────────────────────────────────────────────────────
+# 自动安装配置
+# ────────────────────────────────────────────────────────────────
+
+auto_install:
+  enabled: true
+  confirm_before_install: false  # false = 自动安装不询问
+  fallback_on_failure: true      # 安装失败时降级到 fallback 工具
+  max_retries: 2
+
+# ────────────────────────────────────────────────────────────────
+# 知识沉淀路径映射
+# ────────────────────────────────────────────────────────────────
+
+knowledge_paths:
+  project_level: "./CLAUDE.md"
+  global_level: "~/compound-knowledge"
+
+  # 全局知识库目录结构
+  global_structure:
+    - "exchange/core/pitfalls/"
+    - "exchange/core/decisions/"
+    - "exchange/spot/pitfalls/"
+    - "exchange/futures/pitfalls/"
+    - "custody/mpc/pitfalls/"
+    - "custody/mpc/decisions/"
+    - "custody/wallet/pitfalls/"
+    - "custody/compliance/references/"
+    - "infra/blockchain/pitfalls/"
+    - "infra/devops/templates/"

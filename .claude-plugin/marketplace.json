@@ -1,0 +1,25 @@
+{
+  "name": "ai-agent-entrance-marketplace",
+  "owner": {
+    "name": "Larry Yan",
+    "url": "https://github.com/yanlei-chainup"
+  },
+  "metadata": {
+    "description": "AI Agent Entrance - 智能路由与知识沉淀插件市场",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ai-agent-entrance",
+      "description": "智能路由与知识沉淀 - 自动识别任务类型、推荐最佳开发流程、沉淀可复用知识",
+      "version": "1.0.0",
+      "author": {
+        "name": "Larry Yan",
+        "url": "https://github.com/yanlei-chainup"
+      },
+      "homepage": "https://github.com/yanlei-chainup/ai-agent-entrance",
+      "tags": ["workflow", "routing", "knowledge-management"],
+      "source": "./plugins/ai-agent-entrance"
+    }
+  ]
+}

@@ -1,0 +1,275 @@
+# ════════════════════════════════════════════════════════════════
+# 业务关键字配置 - biz-keywords.yaml
+# 用于识别产品线和任务类型，驱动智能路由和知识沉淀分类
+# ════════════════════════════════════════════════════════════════
+
+# ────────────────────────────────────────────────────────────────
+# 产品线关键字（根据企业产品文档提取）
+# ────────────────────────────────────────────────────────────────
+
+product_lines:
+  exchange:
+    core:
+      keywords:
+        - 撮合引擎
+        - Matching Engine
+        - 订单簿
+        - Orderbook
+        - TPS
+        - 延迟
+        - latency
+        - 吞吐量
+        - throughput
+      knowledge_path: "exchange/core/"
+
+    spot:
+      keywords:
+        - 现货
+        - Spot
+        - 挂单
+        - 市价单
+        - 限价单
+        - 现货交易
+      knowledge_path: "exchange/spot/"
+
+    futures:
+      keywords:
+        - 合约
+        - Futures
+        - 永续
+        - 强平
+        - 保证金
+        - 杠杆
+        - 期货
+        - 爆仓
+      knowledge_path: "exchange/futures/"
+
+    liquidity:
+      keywords:
+        - 流动性
+        - Liquidity
+        - 深度
+        - 做市
+        - 对冲
+        - 聚合
+        - 滑点
+      knowledge_path: "exchange/liquidity/"
+
+  custody:
+    mpc:
+      keywords:
+        - MPC
+        - TSS
+        - 门限签名
+        - 密钥分片
+        - Signer
+        - 签名集群
+        - 多方计算
+      knowledge_path: "custody/mpc/"
+
+    wallet:
+      keywords:
+        - 冷钱包
+        - 热钱包
+        - 温钱包
+        - Cold Wallet
+        - Hot Wallet
+        - 钱包架构
+        - 地址管理
+      knowledge_path: "custody/wallet/"
+
+    security:
+      keywords:
+        - TEE
+        - SGX
+        - 可信执行
+        - 硬件隔离
+        - HSM
+        - 密钥安全
+      knowledge_path: "custody/security/"
+
+    compliance:
+      keywords:
+        - KYT
+        - AML
+        - 反洗钱
+        - 风控
+        - OFAC
+        - 制裁
+        - 合规
+        - 地址风险
+      knowledge_path: "custody/compliance/"
+
+  infra:
+    blockchain:
+      keywords:
+        - 多链
+        - 节点
+        - Listener
+        - 区块同步
+        - Gas
+        - 链上
+        - Web3
+        - RPC
+      knowledge_path: "infra/blockchain/"
+
+    devops:
+      keywords:
+        - K8s
+        - Kubernetes
+        - Docker
+        - 部署
+        - CI/CD
+        - RocketMQ
+        - Redis
+        - 运维
+        - 监控
+      knowledge_path: "infra/devops/"
+
+# ────────────────────────────────────────────────────────────────
+# 任务类型关键字（用于流程路由）
+# ────────────────────────────────────────────────────────────────
+
+task_types:
+  new_project:
+    keywords:
+      - 新项目
+      - 从零开始
+      - 从0开始
+      - 新系统
+      - 全新
+      - 新产品
+    suggest_tool: "bmad"
+    fallback: "plan"
+
+  new_feature:
+    keywords:
+      - 新功能
+      - 新增
+      - 添加
+      - 实现
+      - 开发
+      - 功能开发
+    suggest_tool: "bmad"
+    fallback: "plan"
+
+  optimization:
+    keywords:
+      - 优化
+      - 性能
+      - 提升
+      - 改进
+      - 加速
+      - 提高
+    suggest_tool: "openspec"
+    fallback: "plan"
+
+  refactor:
+    keywords:
+      - 重构
+      - 改造
+      - 迁移
+      - 升级
+      - 替换
+      - 重写
+    suggest_tool: "openspec"
+    fallback: "plan"
+
+  bugfix:
+    keywords:
+      - bug
+      - 修复
+      - 问题
+      - 报错
+      - 异常
+      - 失败
+      - 错误
+      - 不工作
+    suggest_tool: "plan"
+
+  research:
+    keywords:
+      - 调研
+      - 分析
+      - 评估
+      - 对比
+      - 选型
+      - 研究
+    suggest_tool: "plan"
+
+  tdd:
+    keywords:
+      - TDD
+      - 测试驱动
+      - 先写测试
+      - 省Token
+      - SDD
+    suggest_tool: "superpowers"
+    fallback: "plan"
+
+# ────────────────────────────────────────────────────────────────
+# 知识沉淀触发关键字
+# ────────────────────────────────────────────────────────────────
+
+sink_triggers:
+  pitfall:
+    keywords:
+      - 踩坑
+      - 坑
+      - 注意
+      - 小心
+      - 原来是
+      - 居然是
+      - 没想到
+      - 被坑
+      - 这个问题
+      - 搞了很久
+    template: "templates/pitfall.md"
+
+  adr:
+    keywords:
+      - 决定用
+      - 选择
+      - 方案
+      - 架构
+      - 设计
+      - 权衡
+      - 对比之后
+      - 最终选
+    template: "templates/adr.md"
+
+  glossary:
+    keywords:
+      - 是什么
+      - 什么是
+      - 定义
+      - 术语
+      - 概念
+      - 解释一下
+    template: "templates/glossary.md"
+
+  best_practice:
+    keywords:
+      - 最佳实践
+      - 推荐做法
+      - 标准做法
+      - 应该这样
+      - 正确的方式
+    template: "templates/best-practice.md"
+
+# ────────────────────────────────────────────────────────────────
+# 关键字匹配配置
+# ────────────────────────────────────────────────────────────────
+
+matching:
+  # 匹配模式：exact（精确）, contains（包含）, fuzzy（模糊）
+  mode: "contains"
+
+  # 大小写敏感
+  case_sensitive: false
+
+  # 多关键字权重：匹配多个关键字时提高置信度
+  multi_keyword_boost: 1.5
+
+  # 最低置信度阈值
+  min_confidence: 0.6
