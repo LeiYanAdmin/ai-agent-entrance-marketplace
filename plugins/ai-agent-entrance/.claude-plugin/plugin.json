@@ -4,9 +4,9 @@
   "description": "智能路由与知识沉淀 - 自动识别任务类型、推荐最佳开发流程、沉淀可复用知识",
   "author": {
     "name": "Larry Yan",
-    "url": "https://github.com/yanlei-chainup"
+    "url": "https://github.com/LeiYanAdmin"
   },
-  "repository": "https://github.com/yanlei-chainup/ai-agent-entrance",
+  "repository": "https://github.com/LeiYanAdmin/ai-agent-entrance-marketplace",
   "license": "MIT",
   "keywords": [
     "workflow-routing",
