@@ -45,7 +45,7 @@ function getSettingsPath() {
   return (0, import_path.join)(getDataDir(), "settings.json");
 }
 function getPluginRoot() {
-  return process.env.CLAUDE_PLUGIN_ROOT || (0, import_path.join)((0, import_os.homedir)(), ".claude", "plugins", "marketplaces", "ai-agent-entrance", "plugin");
+  return process.env.CLAUDE_PLUGIN_ROOT || (0, import_path.join)(__dirname, "..");
 }
 function loadSettings() {
   const settingsPath = getSettingsPath();

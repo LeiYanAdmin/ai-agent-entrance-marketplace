@@ -4,7 +4,8 @@
 
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer, Server as HttpServer } from 'http';
-import { getWorkerPort, getWorkerHost, ensureDataDir } from '../shared/config.js';
+import { join } from 'path';
+import { getWorkerPort, getWorkerHost, ensureDataDir, getPluginRoot } from '../shared/config.js';
 import { logger } from '../utils/logger.js';
 import { DatabaseStore, getStore } from './database/store.js';
 import { SearchService } from './database/search.js';
@@ -68,6 +69,13 @@ export class WorkerService {
   }
 
   private setupRoutes(): void {
+    // Dashboard UI
+    const uiDir = join(getPluginRoot(), 'ui');
+    this.app.use('/ui', express.static(uiDir));
+    this.app.get('/', (req: Request, res: Response) => {
+      res.sendFile(join(uiDir, 'dashboard.html'));
+    });
+
     // Health & Admin
     this.app.get('/api/health', this.handleHealth.bind(this));
     this.app.get('/api/readiness', this.handleReadiness.bind(this));
@@ -84,6 +92,10 @@ export class WorkerService {
 
     // Routing
     this.app.post('/api/routing/analyze', this.handleRoutingAnalyze.bind(this));
+
+    // Data listing
+    this.app.get('/api/observations', this.handleListObservations.bind(this));
+    this.app.get('/api/knowledge', this.handleListKnowledge.bind(this));
 
     // Search
     this.app.get('/api/search/observations', this.handleSearchObservations.bind(this));
@@ -432,6 +444,31 @@ export class WorkerService {
       res.json({ success: true, data: result });
     } catch (error) {
       logger.error('ROUTING', 'Analyze failed', {}, error as Error);
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  // ============================================================================
+  // Data Listing
+  // ============================================================================
+
+  private handleListObservations(req: Request, res: Response): void {
+    try {
+      const project = req.query.project as string;
+      const limit = parseInt((req.query.limit as string) || '50', 10);
+      const observations = this.store.getRecentObservations(project || undefined, limit);
+      res.json({ success: true, data: observations });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  private handleListKnowledge(req: Request, res: Response): void {
+    try {
+      const project = req.query.project as string;
+      const pending = this.store.getUnsyncedKnowledge(project || undefined);
+      res.json({ success: true, data: pending });
+    } catch (error) {
       res.status(500).json({ success: false, error: (error as Error).message });
     }
   }

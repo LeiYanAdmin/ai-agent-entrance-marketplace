@@ -18376,7 +18376,7 @@ var require_view = __commonJS({
     var dirname = path.dirname;
     var basename = path.basename;
     var extname = path.extname;
-    var join4 = path.join;
+    var join5 = path.join;
     var resolve = path.resolve;
     module2.exports = View;
     function View(name, options) {
@@ -18424,12 +18424,12 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve2(dir, file) {
       var ext = this.ext;
-      var path2 = join4(dir, file);
+      var path2 = join5(dir, file);
       var stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
       }
-      path2 = join4(dir, basename(file, ext), "index" + ext);
+      path2 = join5(dir, basename(file, ext), "index" + ext);
       stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
@@ -19062,7 +19062,7 @@ var require_send = __commonJS({
     var Stream = require("stream");
     var util = require("util");
     var extname = path.extname;
-    var join4 = path.join;
+    var join5 = path.join;
     var normalize = path.normalize;
     var resolve = path.resolve;
     var sep = path.sep;
@@ -19281,7 +19281,7 @@ var require_send = __commonJS({
           return res;
         }
         parts = path2.split(sep);
-        path2 = normalize(join4(root, path2));
+        path2 = normalize(join5(root, path2));
       } else {
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
@@ -19416,7 +19416,7 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join4(path2, self._index[i]);
+        var p = join5(path2, self._index[i]);
         debug('stat "%s"', p);
         fs.stat(p, function(err2, stat) {
           if (err2) return next(err2);
@@ -29849,6 +29849,7 @@ __export(worker_service_exports, {
 module.exports = __toCommonJS(worker_service_exports);
 var import_express = __toESM(require_express2(), 1);
 var import_http = require("http");
+var import_path4 = require("path");
 
 // src/shared/config.ts
 var import_fs = require("fs");
@@ -29891,7 +29892,7 @@ function getSettingsPath() {
   return (0, import_path.join)(getDataDir(), "settings.json");
 }
 function getPluginRoot() {
-  return process.env.CLAUDE_PLUGIN_ROOT || (0, import_path.join)((0, import_os.homedir)(), ".claude", "plugins", "marketplaces", "ai-agent-entrance", "plugin");
+  return process.env.CLAUDE_PLUGIN_ROOT || (0, import_path.join)(__dirname, "..");
 }
 function loadSettings() {
   const settingsPath = getSettingsPath();
@@ -31394,6 +31395,11 @@ var WorkerService = class {
     });
   }
   setupRoutes() {
+    const uiDir = (0, import_path4.join)(getPluginRoot(), "ui");
+    this.app.use("/ui", import_express.default.static(uiDir));
+    this.app.get("/", (req, res) => {
+      res.sendFile((0, import_path4.join)(uiDir, "dashboard.html"));
+    });
     this.app.get("/api/health", this.handleHealth.bind(this));
     this.app.get("/api/readiness", this.handleReadiness.bind(this));
     this.app.post("/api/admin/shutdown", this.handleShutdown.bind(this));
@@ -31403,6 +31409,8 @@ var WorkerService = class {
     this.app.post("/api/hook/stop", this.handleStop.bind(this));
     this.app.get("/api/context/inject", this.handleContextInject.bind(this));
     this.app.post("/api/routing/analyze", this.handleRoutingAnalyze.bind(this));
+    this.app.get("/api/observations", this.handleListObservations.bind(this));
+    this.app.get("/api/knowledge", this.handleListKnowledge.bind(this));
     this.app.get("/api/search/observations", this.handleSearchObservations.bind(this));
     this.app.get("/api/search/knowledge", this.handleSearchKnowledge.bind(this));
     this.app.post("/api/knowledge/sink", this.handleKnowledgeSink.bind(this));
@@ -31666,6 +31674,28 @@ var WorkerService = class {
       res.json({ success: true, data: result });
     } catch (error) {
       logger.error("ROUTING", "Analyze failed", {}, error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  // ============================================================================
+  // Data Listing
+  // ============================================================================
+  handleListObservations(req, res) {
+    try {
+      const project = req.query.project;
+      const limit = parseInt(req.query.limit || "50", 10);
+      const observations = this.store.getRecentObservations(project || void 0, limit);
+      res.json({ success: true, data: observations });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  handleListKnowledge(req, res) {
+    try {
+      const project = req.query.project;
+      const pending = this.store.getUnsyncedKnowledge(project || void 0);
+      res.json({ success: true, data: pending });
+    } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
   }

@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Agent Entrance</title>
+  <style>
+    /* Theme Variables - Light Mode */
+    :root,
+    [data-theme="light"] {
+      --color-bg-primary: #ffffff;
+      --color-bg-secondary: #efebe4;
+      --color-bg-tertiary: #f0f0f0;
+      --color-bg-header: #f6f8fa;
+      --color-bg-card: #ffffff;
+      --color-bg-card-hover: #f6f8fa;
+      --color-bg-input: #ffffff;
+      --color-bg-button: #0969da;
+      --color-bg-button-hover: #1177e6;
+      --color-bg-stat: #f6f8fa;
+      --color-bg-badge: rgba(9, 105, 218, 0.08);
+      --color-bg-routing: #f0f6fb;
+      --color-bg-knowledge: #f6f3fb;
+      --color-bg-observation: #fffbf0;
+
+      --color-border-primary: #d0d7de;
+      --color-border-secondary: #d8dee4;
+      --color-border-hover: #0969da;
+      --color-border-focus: #0969da;
+
+      --color-text-primary: #2b2520;
+      --color-text-secondary: #5a5248;
+      --color-text-tertiary: #726b5f;
+      --color-text-muted: #8f8a7e;
+      --color-text-button: #ffffff;
+      --color-text-logo: #2b2520;
+
+      --color-accent-primary: #0969da;
+      --color-accent-success: #1a7f37;
+      --color-accent-warning: #9a6700;
+      --color-accent-error: #d1242f;
+      --color-accent-purple: #8250df;
+
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+      --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --shadow-focus: 0 0 0 2px rgba(9, 105, 218, 0.3);
+
+      --font-mono: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+    }
+
+    /* Theme Variables - Dark Mode */
+    [data-theme="dark"] {
+      --color-bg-primary: #1a1916;
+      --color-bg-secondary: #252320;
+      --color-bg-tertiary: #1f1d1a;
+      --color-bg-header: #1f1d1a;
+      --color-bg-card: #252320;
+      --color-bg-card-hover: #2d2a26;
+      --color-bg-input: #252320;
+      --color-bg-button: #0969da;
+      --color-bg-button-hover: #1177e6;
+      --color-bg-stat: #252320;
+      --color-bg-badge: rgba(88, 166, 255, 0.1);
+      --color-bg-routing: #1a2332;
+      --color-bg-knowledge: #262033;
+      --color-bg-observation: #2a2724;
+
+      --color-border-primary: #3a3834;
+      --color-border-secondary: #3a3834;
+      --color-border-hover: #4a4540;
+      --color-border-focus: #58a6ff;
+
+      --color-text-primary: #dcd6cc;
+      --color-text-secondary: #b8b0a4;
+      --color-text-tertiary: #938a7e;
+      --color-text-muted: #7a7266;
+      --color-text-button: #ffffff;
+      --color-text-logo: #e0dad0;
+
+      --color-accent-primary: #58a6ff;
+      --color-accent-success: #16c60c;
+      --color-accent-warning: #d4b888;
+      --color-accent-error: #e74856;
+      --color-accent-purple: #8e7cbc;
+
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+      --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.3);
+      --shadow-focus: 0 0 0 2px rgba(88, 166, 255, 0.2);
+
+      --font-mono: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+    }
+
+    /* System preference default */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme]) {
+        --color-bg-primary: #1a1916;
+        --color-bg-secondary: #252320;
+        --color-bg-tertiary: #1f1d1a;
+        --color-bg-header: #1f1d1a;
+        --color-bg-card: #252320;
+        --color-bg-card-hover: #2d2a26;
+        --color-bg-input: #252320;
+        --color-bg-button: #0969da;
+        --color-bg-button-hover: #1177e6;
+        --color-bg-stat: #252320;
+        --color-bg-badge: rgba(88, 166, 255, 0.1);
+        --color-bg-routing: #1a2332;
+        --color-bg-knowledge: #262033;
+        --color-bg-observation: #2a2724;
+        --color-border-primary: #3a3834;
+        --color-border-secondary: #3a3834;
+        --color-border-hover: #4a4540;
+        --color-border-focus: #58a6ff;
+        --color-text-primary: #dcd6cc;
+        --color-text-secondary: #b8b0a4;
+        --color-text-tertiary: #938a7e;
+        --color-text-muted: #7a7266;
+        --color-text-button: #ffffff;
+        --color-text-logo: #e0dad0;
+        --color-accent-primary: #58a6ff;
+        --color-accent-success: #16c60c;
+        --color-accent-warning: #d4b888;
+        --color-accent-error: #e74856;
+        --color-accent-purple: #8e7cbc;
+        --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+        --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.3);
+        --shadow-focus: 0 0 0 2px rgba(88, 166, 255, 0.2);
+        --font-mono: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+      }
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+      background: var(--color-bg-primary);
+      color: var(--color-text-primary);
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--color-border-primary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to bottom, var(--color-bg-header) 0%, var(--color-bg-primary) 100%);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      position: relative;
+    }
+
+    .logo-text {
+      font-family: var(--font-mono);
+      font-weight: 300;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+      color: var(--color-text-logo);
+      line-height: 1;
+    }
+
+    .logo-version {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-muted);
+      padding: 2px 6px;
+      background: var(--color-bg-badge);
+      border-radius: 4px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-accent-success);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-dot.offline { background: var(--color-accent-error); animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .status-text {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      font-family: var(--font-mono);
+    }
+
+    .icon-btn {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 6px;
+      padding: 0;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-secondary);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      font-size: 16px;
+    }
+
+    .icon-btn:hover {
+      background: var(--color-bg-card-hover);
+      border-color: var(--color-border-focus);
+      color: var(--color-text-primary);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Main Content */
+    .main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--color-bg-stat);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: var(--shadow-card);
+    }
+
+    .stat-card:hover {
+      border-color: var(--color-border-hover);
+      box-shadow: var(--shadow-card-hover);
+      transform: translateY(-1px);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-family: var(--font-mono);
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+      line-height: 1;
+    }
+
+    .stat-detail {
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+    }
+
+    /* Section */
+    .section {
+      margin-bottom: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--color-border-primary);
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-badge {
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--color-bg-badge);
+      color: var(--color-accent-primary);
+    }
+
+    /* Routing Analyzer */
+    .routing-box {
+      background: var(--color-bg-routing);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .routing-input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .routing-input {
+      flex: 1;
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--color-text-primary);
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .routing-input:focus {
+      border-color: var(--color-border-focus);
+      box-shadow: var(--shadow-focus);
+    }
+
+    .routing-input::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    .btn {
+      background: var(--color-bg-button);
+      color: var(--color-text-button);
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: var(--color-bg-button-hover); transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .routing-result {
+      display: none;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .routing-result.visible { display: block; }
+
+    .routing-result-row {
+      display: flex;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--color-border-secondary);
+      font-size: 13px;
+    }
+
+    .routing-result-row:last-child { border-bottom: none; }
+
+    .routing-result-label {
+      width: 120px;
+      flex-shrink: 0;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .routing-result-value {
+      flex: 1;
+      color: var(--color-text-primary);
+      word-break: break-word;
+    }
+
+    /* Feed Items */
+    .feed { display: flex; flex-direction: column; gap: 8px; }
+
+    .feed-item {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 10px;
+      padding: 14px 16px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: var(--shadow-card);
+      cursor: default;
+    }
+
+    .feed-item:hover {
+      border-color: var(--color-border-hover);
+      box-shadow: var(--shadow-card-hover);
+    }
+
+    .feed-item-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .feed-item-type {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .feed-item-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      flex: 1;
+    }
+
+    .feed-item-time {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .feed-item-body {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+      padding-left: 26px;
+    }
+
+    .feed-item-tags {
+      display: flex;
+      gap: 6px;
+      padding-left: 26px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--color-bg-badge);
+      color: var(--color-accent-primary);
+    }
+
+    .tag.purple { background: rgba(130, 80, 223, 0.1); color: var(--color-accent-purple); }
+    .tag.success { background: rgba(26, 127, 55, 0.1); color: var(--color-accent-success); }
+    .tag.warning { background: rgba(154, 103, 0, 0.1); color: var(--color-accent-warning); }
+
+    /* Knowledge Items */
+    .knowledge-item {
+      background: var(--color-bg-knowledge);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 10px;
+      padding: 14px 16px;
+      transition: all 0.2s;
+      box-shadow: var(--shadow-card);
+    }
+
+    .knowledge-item:hover {
+      border-color: var(--color-accent-purple);
+      box-shadow: var(--shadow-card-hover);
+    }
+
+    .knowledge-item-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .knowledge-type-badge {
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(130, 80, 223, 0.12);
+      color: var(--color-accent-purple);
+      text-transform: uppercase;
+    }
+
+    .knowledge-item-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      flex: 1;
+    }
+
+    .knowledge-item-body {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+    }
+
+    .knowledge-item-meta {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--color-text-muted);
+    }
+
+    .empty-state-icon { font-size: 32px; margin-bottom: 12px; }
+    .empty-state-text { font-size: 14px; }
+    .empty-state-hint { font-size: 12px; margin-top: 6px; color: var(--color-text-tertiary); }
+
+    /* Loading skeleton */
+    .skeleton {
+      background: linear-gradient(90deg,
+        var(--color-bg-tertiary) 25%,
+        var(--color-bg-card-hover) 50%,
+        var(--color-bg-tertiary) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+      border-radius: 4px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--color-border-primary);
+      padding-bottom: 0;
+    }
+
+    .tab {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      font-family: inherit;
+      margin-bottom: -1px;
+    }
+
+    .tab:hover { color: var(--color-text-primary); }
+    .tab.active {
+      color: var(--color-accent-primary);
+      border-bottom-color: var(--color-accent-primary);
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .main { padding: 16px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .header { padding: 12px 16px; }
+      .routing-input-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <span class="logo-text">ai-agent-entrance</span>
+      <span class="logo-version" id="version">v2.0.0</span>
+    </div>
+    <div class="header-right">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-text" id="statusText">connecting...</span>
+      <button class="icon-btn" id="themeToggle" title="Toggle theme">
+        <span id="themeIcon">&#9790;</span>
+      </button>
+      <button class="icon-btn" onclick="location.reload()" title="Refresh">&#8635;</button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-label">Observations</div>
+        <div class="stat-value" id="statObservations">-</div>
+        <div class="stat-detail">total recorded</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Knowledge</div>
+        <div class="stat-value" id="statKnowledge">-</div>
+        <div class="stat-detail">entries stored</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sessions</div>
+        <div class="stat-value" id="statSessions">-</div>
+        <div class="stat-detail">completed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Uptime</div>
+        <div class="stat-value" id="statUptime">-</div>
+        <div class="stat-detail" id="statUptimeDetail">worker running</div>
+      </div>
+    </div>
+
+    <!-- Routing Analyzer -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">
+          <span>&#128269;</span> Routing Analyzer
+        </div>
+      </div>
+      <div class="routing-box">
+        <div class="routing-input-row">
+          <input type="text" class="routing-input" id="routingInput"
+            placeholder="Enter a task description to test routing... (e.g., '新项目从零开始')" />
+          <button class="btn" id="routingBtn" onclick="analyzeRouting()">Analyze</button>
+        </div>
+        <div class="routing-result" id="routingResult">
+          <div class="routing-result-row">
+            <div class="routing-result-label">Task Type</div>
+            <div class="routing-result-value" id="routeTaskType">-</div>
+          </div>
+          <div class="routing-result-row">
+            <div class="routing-result-label">Workflow</div>
+            <div class="routing-result-value" id="routeWorkflow">-</div>
+          </div>
+          <div class="routing-result-row">
+            <div class="routing-result-label">Keywords</div>
+            <div class="routing-result-value" id="routeKeywords">-</div>
+          </div>
+          <div class="routing-result-row">
+            <div class="routing-result-label">Product Line</div>
+            <div class="routing-result-value" id="routeProductLine">-</div>
+          </div>
+          <div class="routing-result-row">
+            <div class="routing-result-label">Reason</div>
+            <div class="routing-result-value" id="routeReason">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs: Observations / Knowledge -->
+    <div class="tabs">
+      <button class="tab active" data-tab="observations" onclick="switchTab('observations')">Observations</button>
+      <button class="tab" data-tab="knowledge" onclick="switchTab('knowledge')">Knowledge</button>
+    </div>
+
+    <!-- Observations Feed -->
+    <div class="section" id="observationsTab">
+      <div class="feed" id="observationsFeed">
+        <div class="empty-state">
+          <div class="empty-state-icon">&#128065;</div>
+          <div class="empty-state-text">No observations yet</div>
+          <div class="empty-state-hint">Observations are captured during Claude Code sessions via PostToolUse hook</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Knowledge Tab -->
+    <div class="section" id="knowledgeTab" style="display:none">
+      <div class="feed" id="knowledgeFeed">
+        <div class="empty-state">
+          <div class="empty-state-icon">&#128218;</div>
+          <div class="empty-state-text">No knowledge entries yet</div>
+          <div class="empty-state-hint">Knowledge is sunk at the end of each session via Stop hook</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+    const TYPE_EMOJI = {
+      decision: '\u{1F7E3}', bugfix: '\u{1F534}', feature: '\u{1F535}',
+      refactor: '\u{1F7E1}', discovery: '\u{1F7E2}', pitfall: '\u26A0\uFE0F', change: '\u26AA'
+    };
+
+    // Theme
+    function getTheme() {
+      return localStorage.getItem('aae-theme') || 'auto';
+    }
+
+    function applyTheme(theme) {
+      if (theme === 'auto') {
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+      document.getElementById('themeIcon').textContent = theme === 'dark' ? '\u2600' : '\u263E';
+    }
+
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      const current = getTheme();
+      let next;
+      if (current === 'auto') {
+        next = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark';
+      } else {
+        next = current === 'dark' ? 'light' : 'dark';
+      }
+      localStorage.setItem('aae-theme', next);
+      applyTheme(next);
+    });
+
+    applyTheme(getTheme());
+
+    // Format uptime
+    function formatUptime(ms) {
+      const s = Math.floor(ms / 1000);
+      if (s < 60) return s + 's';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + 'm';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + 'h ' + (m % 60) + 'm';
+      const d = Math.floor(h / 24);
+      return d + 'd ' + (h % 24) + 'h';
+    }
+
+    function formatTime(isoStr) {
+      try {
+        const d = new Date(isoStr);
+        return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      } catch { return ''; }
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    // Load health + stats
+    async function loadStatus() {
+      try {
+        const res = await fetch(API + '/api/health');
+        if (!res.ok) throw new Error('Not OK');
+        const data = await res.json();
+
+        document.getElementById('statusDot').classList.remove('offline');
+        document.getElementById('statusText').textContent = 'healthy';
+        document.getElementById('version').textContent = 'v' + data.version;
+        document.getElementById('statUptime').textContent = formatUptime(data.uptime);
+      } catch {
+        document.getElementById('statusDot').classList.add('offline');
+        document.getElementById('statusText').textContent = 'offline';
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch(API + '/api/stats');
+        if (!res.ok) return;
+        const { data } = await res.json();
+
+        document.getElementById('statObservations').textContent = data.observations ?? 0;
+        document.getElementById('statKnowledge').textContent = data.knowledge ?? 0;
+        document.getElementById('statSessions').textContent = data.sessions ?? 0;
+        document.getElementById('statUptime').textContent = formatUptime(data.uptime);
+      } catch {}
+    }
+
+    // Load observations
+    async function loadObservations() {
+      try {
+        const res = await fetch(API + '/api/observations?limit=50');
+        if (!res.ok) return;
+        const { data } = await res.json();
+
+        const feed = document.getElementById('observationsFeed');
+        if (!data || data.length === 0) {
+          feed.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">&#128065;</div>
+              <div class="empty-state-text">No observations yet</div>
+              <div class="empty-state-hint">Observations are captured during Claude Code sessions via PostToolUse hook</div>
+            </div>`;
+          return;
+        }
+
+        feed.innerHTML = data.map(obs => `
+          <div class="feed-item">
+            <div class="feed-item-header">
+              <span class="feed-item-type">${TYPE_EMOJI[obs.type] || '\u26AA'}</span>
+              <span class="feed-item-title">${escapeHtml(obs.title)}</span>
+              <span class="feed-item-time">${formatTime(obs.created_at)}</span>
+            </div>
+            ${obs.narrative ? `<div class="feed-item-body">${escapeHtml(obs.narrative)}</div>` : ''}
+            ${obs.concepts ? `<div class="feed-item-tags">${
+              (typeof obs.concepts === 'string' ? obs.concepts.split(',') : []).map(
+                c => `<span class="tag">${escapeHtml(c.trim())}</span>`
+              ).join('')
+            }</div>` : ''}
+          </div>
+        `).join('');
+      } catch {
+        // Silent - observations may not exist yet
+      }
+    }
+
+    // Load knowledge
+    async function loadKnowledge() {
+      try {
+        const res = await fetch(API + '/api/knowledge');
+        if (!res.ok) return;
+        const { data } = await res.json();
+
+        const feed = document.getElementById('knowledgeFeed');
+        if (!data || data.length === 0) {
+          feed.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">&#128218;</div>
+              <div class="empty-state-text">No knowledge entries yet</div>
+              <div class="empty-state-hint">Knowledge is sunk at the end of each session via Stop hook</div>
+            </div>`;
+          return;
+        }
+
+        feed.innerHTML = data.map(k => `
+          <div class="knowledge-item">
+            <div class="knowledge-item-header">
+              <span class="knowledge-type-badge">${escapeHtml(k.type || 'note')}</span>
+              <span class="knowledge-item-title">${escapeHtml(k.title)}</span>
+            </div>
+            ${k.content ? `<div class="knowledge-item-body">${escapeHtml(k.content)}</div>` : ''}
+            <div class="knowledge-item-meta">
+              ${k.project ? `<span>project: ${escapeHtml(k.project)}</span>` : ''}
+              ${k.tags ? `<span>tags: ${escapeHtml(k.tags)}</span>` : ''}
+            </div>
+          </div>
+        `).join('');
+      } catch {}
+    }
+
+    // Routing analyzer
+    async function analyzeRouting() {
+      const input = document.getElementById('routingInput').value.trim();
+      if (!input) return;
+
+      const btn = document.getElementById('routingBtn');
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      try {
+        const res = await fetch(API + '/api/routing/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input }),
+        });
+        const { data } = await res.json();
+
+        document.getElementById('routeTaskType').textContent = data.task_type || '-';
+        document.getElementById('routeWorkflow').textContent = data.recommended_workflow || '-';
+        document.getElementById('routeKeywords').textContent = (data.keywords || []).join(', ') || 'none';
+        document.getElementById('routeProductLine').textContent = data.product_line || 'none';
+        document.getElementById('routeReason').textContent = data.reason || '-';
+
+        document.getElementById('routingResult').classList.add('visible');
+      } catch (err) {
+        alert('Routing analysis failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Analyze';
+      }
+    }
+
+    // Enter key for routing input
+    document.getElementById('routingInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') analyzeRouting();
+    });
+
+    // Tab switching
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      document.getElementById('observationsTab').style.display = tab === 'observations' ? '' : 'none';
+      document.getElementById('knowledgeTab').style.display = tab === 'knowledge' ? '' : 'none';
+    }
+
+    // Init
+    async function init() {
+      await loadStatus();
+      await loadStats();
+      loadObservations();
+      loadKnowledge();
+
+      // Auto-refresh every 30s
+      setInterval(() => {
+        loadStatus();
+        loadStats();
+      }, 30000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

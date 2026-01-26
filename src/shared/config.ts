@@ -65,7 +65,9 @@ export function getSettingsPath(): string {
 }
 
 export function getPluginRoot(): string {
-  return process.env.CLAUDE_PLUGIN_ROOT || join(homedir(), '.claude', 'plugins', 'marketplaces', 'ai-agent-entrance', 'plugin');
+  // CLAUDE_PLUGIN_ROOT is set by Claude Code hooks
+  // Fallback: resolve from __dirname (scripts/) up one level to plugin root
+  return process.env.CLAUDE_PLUGIN_ROOT || join(__dirname, '..');
 }
 
 export function getGlobalKnowledgeRepo(): string {
