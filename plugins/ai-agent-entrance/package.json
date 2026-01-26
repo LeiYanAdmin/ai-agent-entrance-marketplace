@@ -1,6 +1,7 @@
 {
   "name": "ai-agent-entrance-plugin",
   "version": "2.0.0",
+  "type": "module",
   "private": true,
   "description": "AI Agent Entrance plugin runtime dependencies",
   "dependencies": {
