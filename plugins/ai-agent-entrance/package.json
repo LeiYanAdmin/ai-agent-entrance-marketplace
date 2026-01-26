@@ -1,0 +1,10 @@
+{
+  "name": "ai-agent-entrance-plugin",
+  "version": "2.0.0",
+  "private": true,
+  "description": "AI Agent Entrance plugin runtime dependencies",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "better-sqlite3": "^11.7.0"
+  }
+}
