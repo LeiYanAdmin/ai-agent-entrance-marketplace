@@ -11,10 +11,12 @@ import { execSync, spawnSync } from 'child_process';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const ROOT = join(homedir(), '.claude', 'plugins', 'marketplaces', 'ai-agent-entrance');
-const MARKER = join(ROOT, '.install-version');
+// Plugin root from Claude Code environment or fallback to script directory
+const ROOT = process.env.CLAUDE_PLUGIN_ROOT || join(import.meta.dirname, '..');
 const IS_WINDOWS = process.platform === 'win32';
 const DATA_DIR = join(homedir(), '.ai-agent-entrance');
+// Store marker in data dir to persist across plugin version updates
+const MARKER = join(DATA_DIR, '.install-version');
 
 /**
  * Check if Node.js is available
