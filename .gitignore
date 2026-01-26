@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output (keep scripts/ in plugin)
+dist/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Data directory
+.ai-agent-entrance/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Duplicate directory (accidentally created)
+ai-agent-entrance-marketplace/

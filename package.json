@@ -1,0 +1,47 @@
+{
+  "name": "ai-agent-entrance",
+  "version": "2.0.0",
+  "description": "智能路由与知识沉淀 - 自动识别任务类型、推荐最佳开发流程、沉淀可复用知识",
+  "type": "module",
+  "main": "plugin/scripts/worker-service.cjs",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "build:watch": "node scripts/build.js --watch",
+    "dev": "npm run build && npm run start",
+    "start": "node plugin/scripts/worker-cli.js start",
+    "stop": "node plugin/scripts/worker-cli.js stop",
+    "restart": "node plugin/scripts/worker-cli.js restart",
+    "status": "node plugin/scripts/worker-cli.js status",
+    "test": "node --test src/**/*.test.ts",
+    "sync": "cp -r plugin/* ~/.claude/plugins/marketplaces/ai-agent-entrance/plugin/"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.21.2",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.7",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": {
+    "name": "Larry Yan",
+    "url": "https://github.com/LeiYanAdmin"
+  },
+  "repository": "https://github.com/LeiYanAdmin/ai-agent-entrance-marketplace",
+  "license": "MIT",
+  "keywords": [
+    "workflow-routing",
+    "knowledge-management",
+    "compound-engineering",
+    "ai-development",
+    "claude-code-plugin"
+  ]
+}
