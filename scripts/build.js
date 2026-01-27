@@ -60,9 +60,10 @@ async function main() {
   });
   console.log('✓ Built worker-cli.cjs');
 
-  // Build MCP server
+  // Build MCP server (bundle @modelcontextprotocol/sdk since it runs standalone)
   await build({
     ...commonOptions,
+    external: ['better-sqlite3', '@anthropic-ai/sdk'],
     entryPoints: [join(SRC, 'mcp', 'entrance-mcp-server.ts')],
     outfile: join(SCRIPTS, 'entrance-mcp-server.cjs'),
     banner: {
