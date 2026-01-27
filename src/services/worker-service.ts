@@ -5,13 +5,15 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer, Server as HttpServer } from 'http';
 import { join } from 'path';
-import { getWorkerPort, getWorkerHost, ensureDataDir, getPluginRoot } from '../shared/config.js';
+import { getWorkerPort, getWorkerHost, ensureDataDir, getPluginRoot, getL2RepoPath } from '../shared/config.js';
 import { logger } from '../utils/logger.js';
 import { DatabaseStore, getStore } from './database/store.js';
 import { SearchService } from './database/search.js';
 import { getRoutingService, RoutingService } from './routing.js';
 import { getCompressor, CompressorService } from './ai/compressor.js';
 import { ProcessManager } from './infrastructure/process-manager.js';
+import { SyncEngine } from './sync/sync-engine.js';
+import { SensitiveFilter } from './security/sensitive-filter.js';
 import type {
   SessionStartInput,
   UserPromptSubmitInput,
@@ -20,6 +22,8 @@ import type {
   HookOutput,
   ApiResponse,
   HealthStatus,
+  KnowledgeAssetType,
+  SyncDirection,
 } from '../shared/types.js';
 
 // ============================================================================
@@ -33,6 +37,8 @@ export class WorkerService {
   private search: SearchService | null = null;
   private routing: RoutingService;
   private compressor: CompressorService;
+  private syncEngine: SyncEngine;
+  private sensitiveFilter: SensitiveFilter;
   private startTime: number;
   private isShuttingDown: boolean = false;
 
@@ -41,6 +47,8 @@ export class WorkerService {
     this.store = getStore();
     this.routing = getRoutingService();
     this.compressor = getCompressor();
+    this.syncEngine = new SyncEngine(this.store);
+    this.sensitiveFilter = new SensitiveFilter();
     this.startTime = Date.now();
 
     this.setupMiddleware();
@@ -107,6 +115,26 @@ export class WorkerService {
 
     // Stats
     this.app.get('/api/stats', this.handleStats.bind(this));
+
+    // Knowledge Assets (L1 ↔ L2)
+    this.app.get('/api/knowledge-assets/search', this.handleSearchKnowledgeAssets.bind(this));
+    this.app.get('/api/knowledge-assets/get', this.handleGetAsset.bind(this));
+    this.app.get('/api/knowledge-assets/list', this.handleListAssets.bind(this));
+    this.app.post('/api/knowledge/sink-asset', this.handleSinkAsset.bind(this));
+
+    // Sync
+    this.app.post('/api/sync/trigger', this.handleSyncTrigger.bind(this));
+    this.app.post('/api/sync/commit-push', this.handleCommitPush.bind(this));
+
+    // Config
+    this.app.get('/api/config/read', this.handleConfigRead.bind(this));
+    this.app.post('/api/config/write', this.handleConfigWrite.bind(this));
+
+    // Security
+    this.app.post('/api/security/filter', this.handleSecurityFilter.bind(this));
+
+    // Knowledge Stats
+    this.app.get('/api/stats/knowledge', this.handleKnowledgeStats.bind(this));
   }
 
   private setupSignalHandlers(): void {
@@ -138,6 +166,12 @@ export class WorkerService {
 
     // Initialize search service
     this.search = new SearchService();
+
+    // Initialize sync engine (non-blocking)
+    const l2RepoUrl = this.store.getConfigValue('L2_REPO_URL') || '';
+    this.syncEngine.initialize(l2RepoUrl || undefined).catch(err => {
+      logger.warn('WORKER', `Sync engine initialization deferred: ${(err as Error).message}`);
+    });
 
     // Start HTTP server
     return new Promise((resolve, reject) => {
@@ -190,7 +224,7 @@ export class WorkerService {
   private handleHealth(req: Request, res: Response): void {
     const status: HealthStatus = {
       status: 'healthy',
-      version: process.env.npm_package_version || '2.0.0',
+      version: process.env.npm_package_version || '2.1.0',
       uptime: Date.now() - this.startTime,
       database: true,
       ai: true,
@@ -398,6 +432,24 @@ export class WorkerService {
         context += '\n';
       }
 
+      // Knowledge summary
+      try {
+        const autoSync = this.store.getConfigValue('AUTO_SYNC_ON_SESSION_START');
+        if (autoSync === 'true') {
+          // Non-blocking sync pull
+          this.syncEngine.pullFromL2().catch(err => {
+            logger.warn('CONTEXT', `Auto-sync pull failed: ${(err as Error).message}`);
+          });
+        }
+
+        const knowledgeSummary = this.syncEngine.getKnowledgeSummary();
+        if (knowledgeSummary && knowledgeSummary !== '知识库为空') {
+          context += `## 知识库\n${knowledgeSummary}\n\n`;
+        }
+      } catch {
+        // Sync engine may not be initialized yet
+      }
+
       // Installed tools
       context += `## 已安装工具\n`;
       if (installedTools.length > 0) {
@@ -570,6 +622,215 @@ export class WorkerService {
           uptime: Date.now() - this.startTime,
         },
       });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  // ============================================================================
+  // Knowledge Assets (L1 ↔ L2)
+  // ============================================================================
+
+  private handleSearchKnowledgeAssets(req: Request, res: Response): void {
+    try {
+      if (!this.search) {
+        res.status(503).json({ success: false, error: 'Search not ready' });
+        return;
+      }
+
+      const query = (req.query.query || req.query.q) as string;
+      if (!query) {
+        res.status(400).json({ success: false, error: 'Query required' });
+        return;
+      }
+
+      const product_line = req.query.product_line as string | undefined;
+      const type = req.query.type as KnowledgeAssetType | undefined;
+      const limit = parseInt((req.query.limit as string) || '20', 10);
+
+      const result = this.search.searchKnowledgeAssets(query, { product_line, type, limit });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  private handleGetAsset(req: Request, res: Response): void {
+    try {
+      const id = req.query.id as string;
+      const name = req.query.name as string;
+      const productLine = req.query.product_line as string;
+
+      let asset = null;
+      if (id) {
+        asset = this.store.getKnowledgeAsset(parseInt(id, 10));
+      } else if (name && productLine) {
+        asset = this.store.getKnowledgeAssetByName(name, productLine);
+      } else if (name) {
+        asset = this.store.getKnowledgeAssetByName(name, 'general');
+      }
+
+      if (!asset) {
+        res.status(404).json({ success: false, error: 'Asset not found' });
+        return;
+      }
+
+      res.json({ success: true, data: asset });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  private handleListAssets(req: Request, res: Response): void {
+    try {
+      if (!this.search) {
+        res.status(503).json({ success: false, error: 'Search not ready' });
+        return;
+      }
+
+      const type = req.query.type as KnowledgeAssetType | undefined;
+      const product_line = req.query.product_line as string | undefined;
+      const promoted = req.query.promoted === 'true' ? true : req.query.promoted === 'false' ? false : undefined;
+      const limit = parseInt((req.query.limit as string) || '50', 10);
+      const offset = parseInt((req.query.offset as string) || '0', 10);
+
+      const result = this.search.listAssets({ type, product_line, promoted, limit, offset });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  private async handleSinkAsset(req: Request, res: Response): Promise<void> {
+    try {
+      const { type, name, product_line, title, content, tags, source_project } = req.body;
+
+      if (!type || !name || !product_line || !title || !content) {
+        res.status(400).json({ success: false, error: 'Missing required fields: type, name, product_line, title, content' });
+        return;
+      }
+
+      // Filter sensitive content before sinking
+      const safeContent = this.sensitiveFilter.sanitize(content);
+
+      const asset = this.store.upsertKnowledgeAsset({
+        type,
+        name,
+        product_line,
+        title,
+        content: safeContent,
+        tags,
+        source_project,
+      });
+
+      res.json({ success: true, data: asset });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  // ============================================================================
+  // Sync
+  // ============================================================================
+
+  private async handleSyncTrigger(req: Request, res: Response): Promise<void> {
+    try {
+      const direction = (req.body.direction || 'both') as SyncDirection;
+
+      const result = await this.syncEngine.sync(direction);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  private async handleCommitPush(req: Request, res: Response): Promise<void> {
+    try {
+      const message = req.body.message as string | undefined;
+      const result = await this.syncEngine.commitAndPush(message);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  // ============================================================================
+  // Config
+  // ============================================================================
+
+  private handleConfigRead(req: Request, res: Response): void {
+    try {
+      const key = req.query.key as string;
+      if (!key) {
+        // Return all config
+        const allConfig = this.store.getAllConfig();
+        res.json({ success: true, data: allConfig });
+        return;
+      }
+      const value = this.store.getConfigValue(key);
+      res.json({ success: true, data: { key, value } });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  private handleConfigWrite(req: Request, res: Response): void {
+    try {
+      const { key, value } = req.body;
+      if (!key || value === undefined) {
+        res.status(400).json({ success: false, error: 'key and value required' });
+        return;
+      }
+      this.store.setConfigValue(key, String(value));
+      res.json({ success: true, data: { key, value } });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  // ============================================================================
+  // Security
+  // ============================================================================
+
+  private handleSecurityFilter(req: Request, res: Response): void {
+    try {
+      const { content, custom_patterns } = req.body;
+      if (!content) {
+        res.status(400).json({ success: false, error: 'content required' });
+        return;
+      }
+
+      const filter = custom_patterns ? new SensitiveFilter(custom_patterns) : this.sensitiveFilter;
+      const findings = filter.detect(content);
+      const sanitized = filter.sanitize(content);
+
+      res.json({
+        success: true,
+        data: {
+          safe: findings.length === 0,
+          findings,
+          sanitized,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  }
+
+  // ============================================================================
+  // Knowledge Stats
+  // ============================================================================
+
+  private handleKnowledgeStats(req: Request, res: Response): void {
+    try {
+      if (!this.search) {
+        res.status(503).json({ success: false, error: 'Search not ready' });
+        return;
+      }
+
+      const productLine = req.query.product_line as string | undefined;
+      const stats = this.search.getAssetStats(productLine);
+      res.json({ success: true, data: stats });
     } catch (error) {
       res.status(500).json({ success: false, error: (error as Error).message });
     }

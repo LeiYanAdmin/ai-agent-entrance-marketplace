@@ -598,12 +598,310 @@
       border-bottom-color: var(--color-accent-primary);
     }
 
+    /* Sync Panel */
+    .sync-panel {
+      background: var(--color-bg-routing);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .sync-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .sync-panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sync-status {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sync-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+    }
+
+    .sync-status-dot.synced { background: var(--color-accent-success); }
+    .sync-status-dot.syncing { background: var(--color-accent-primary); animation: pulse 1s ease-in-out infinite; }
+    .sync-status-dot.error { background: var(--color-accent-error); }
+
+    .sync-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-sm {
+      background: var(--color-bg-button);
+      color: var(--color-text-button);
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    .btn-sm:hover { background: var(--color-bg-button-hover); transform: translateY(-1px); }
+    .btn-sm:active { transform: translateY(0); }
+    .btn-sm:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .btn-outline {
+      background: var(--color-bg-card);
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border-primary);
+    }
+
+    .btn-outline:hover {
+      background: var(--color-bg-card-hover);
+      border-color: var(--color-border-hover);
+      color: var(--color-text-primary);
+    }
+
+    .sync-config {
+      display: flex;
+      gap: 12px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--color-border-secondary);
+      flex-wrap: wrap;
+    }
+
+    .sync-config-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .sync-config-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .sync-config-input {
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: var(--color-text-primary);
+      font-family: var(--font-mono);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .sync-config-input:focus {
+      border-color: var(--color-border-focus);
+      box-shadow: var(--shadow-focus);
+    }
+
+    .sync-config-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 4px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      background: var(--color-bg-tertiary);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .toggle-switch.on {
+      background: var(--color-accent-primary);
+      border-color: var(--color-accent-primary);
+    }
+
+    .toggle-switch .toggle-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .toggle-switch.on .toggle-knob { transform: translateX(16px); }
+
+    .toggle-label {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+
+    /* Knowledge Assets Tab */
+    .search-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .search-input {
+      flex: 1;
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--color-text-primary);
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--color-border-focus);
+      box-shadow: var(--shadow-focus);
+    }
+
+    .search-input::placeholder { color: var(--color-text-muted); }
+
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .filter-select {
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--color-text-primary);
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .filter-select:focus { border-color: var(--color-border-focus); }
+
+    .asset-item {
+      background: var(--color-bg-knowledge);
+      border: 1px solid var(--color-border-primary);
+      border-radius: 10px;
+      padding: 14px 16px;
+      transition: all 0.2s;
+      box-shadow: var(--shadow-card);
+      margin-bottom: 8px;
+    }
+
+    .asset-item:hover {
+      border-color: var(--color-accent-purple);
+      box-shadow: var(--shadow-card-hover);
+    }
+
+    .asset-item-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    .asset-type-badge {
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(130, 80, 223, 0.12);
+      color: var(--color-accent-purple);
+      text-transform: uppercase;
+    }
+
+    .asset-product-badge {
+      font-size: 10px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--color-bg-badge);
+      color: var(--color-accent-primary);
+    }
+
+    .asset-promoted-badge {
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(26, 127, 55, 0.12);
+      color: var(--color-accent-success);
+    }
+
+    .asset-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      flex: 1;
+    }
+
+    .asset-body {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+      max-height: 80px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .asset-meta {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      flex-wrap: wrap;
+    }
+
     /* Responsive */
     @media (max-width: 640px) {
       .main { padding: 16px; }
       .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
       .header { padding: 12px 16px; }
       .routing-input-row { flex-direction: column; }
+      .sync-buttons { flex-direction: column; }
+      .sync-config { flex-direction: column; }
+      .search-bar { flex-direction: column; }
     }
   </style>
 </head>
@@ -619,7 +917,7 @@
         </svg>
       </div>
       <span class="logo-text">ai-agent-entrance</span>
-      <span class="logo-version" id="version">v2.0.0</span>
+      <span class="logo-version" id="version">v2.1.0</span>
     </div>
     <div class="header-right">
       <div class="status-dot" id="statusDot"></div>
@@ -644,6 +942,16 @@
         <div class="stat-label">Knowledge</div>
         <div class="stat-value" id="statKnowledge">-</div>
         <div class="stat-detail">entries stored</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Assets</div>
+        <div class="stat-value" id="statAssets">-</div>
+        <div class="stat-detail" id="statAssetsDetail">L1 knowledge assets</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Promoted</div>
+        <div class="stat-value" id="statPromoted">-</div>
+        <div class="stat-detail">synced to L2</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Sessions</div>
@@ -695,10 +1003,52 @@
       </div>
     </div>
 
-    <!-- Tabs: Observations / Knowledge -->
+    <!-- Sync Panel -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">
+          <span>&#128259;</span> L1 &#8596; L2 Sync
+        </div>
+        <div class="sync-status" id="syncStatus">
+          <span class="sync-status-dot" id="syncStatusDot"></span>
+          <span id="syncStatusText">not configured</span>
+        </div>
+      </div>
+      <div class="sync-panel">
+        <div class="sync-panel-header">
+          <div class="sync-panel-title">Sync Engine</div>
+          <div class="sync-buttons">
+            <button class="btn-sm btn-outline" onclick="triggerSync('pull')" id="syncPullBtn">Pull</button>
+            <button class="btn-sm btn-outline" onclick="triggerSync('push')" id="syncPushBtn">Push</button>
+            <button class="btn-sm" onclick="triggerSync('both')" id="syncBothBtn">Sync Both</button>
+          </div>
+        </div>
+        <div class="sync-config">
+          <div class="sync-config-item">
+            <label class="sync-config-label">L2 Repo URL</label>
+            <input type="text" class="sync-config-input" id="configL2RepoUrl"
+              placeholder="https://github.com/org/compound-knowledge.git"
+              onchange="saveConfig('L2_REPO_URL', this.value)" />
+          </div>
+          <div class="sync-config-item">
+            <label class="sync-config-label">Auto Sync on Session Start</label>
+            <div class="sync-config-toggle">
+              <div class="toggle-switch" id="configAutoSync" onclick="toggleAutoSync()">
+                <div class="toggle-knob"></div>
+              </div>
+              <span class="toggle-label" id="autoSyncLabel">Off</span>
+            </div>
+          </div>
+        </div>
+        <div id="syncResultMsg" style="margin-top:10px;font-size:12px;color:var(--color-text-muted);display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Tabs: Observations / Knowledge / Assets -->
     <div class="tabs">
       <button class="tab active" data-tab="observations" onclick="switchTab('observations')">Observations</button>
       <button class="tab" data-tab="knowledge" onclick="switchTab('knowledge')">Knowledge</button>
+      <button class="tab" data-tab="assets" onclick="switchTab('assets')">Knowledge Assets</button>
     </div>
 
     <!-- Observations Feed -->
@@ -719,6 +1069,47 @@
           <div class="empty-state-icon">&#128218;</div>
           <div class="empty-state-text">No knowledge entries yet</div>
           <div class="empty-state-hint">Knowledge is sunk at the end of each session via Stop hook</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Knowledge Assets Tab -->
+    <div class="section" id="assetsTab" style="display:none">
+      <div class="search-bar">
+        <input type="text" class="search-input" id="assetSearchInput"
+          placeholder="Search knowledge assets... (FTS5 full-text search)" />
+        <button class="btn" onclick="searchAssets()">Search</button>
+      </div>
+      <div class="filter-row">
+        <select class="filter-select" id="assetTypeFilter" onchange="loadAssets()">
+          <option value="">All Types</option>
+          <option value="skill">Skill</option>
+          <option value="reference">Reference</option>
+          <option value="decision">Decision</option>
+          <option value="pitfall">Pitfall</option>
+          <option value="pattern">Pattern</option>
+          <option value="api_spec">API Spec</option>
+          <option value="runbook">Runbook</option>
+          <option value="other">Other</option>
+        </select>
+        <select class="filter-select" id="assetProductFilter" onchange="loadAssets()">
+          <option value="">All Product Lines</option>
+          <option value="exchange">Exchange</option>
+          <option value="custody">Custody</option>
+          <option value="infra">Infra</option>
+          <option value="general">General</option>
+        </select>
+        <select class="filter-select" id="assetPromotedFilter" onchange="loadAssets()">
+          <option value="">All Status</option>
+          <option value="true">Promoted (L2)</option>
+          <option value="false">Unpromoted (L1 only)</option>
+        </select>
+      </div>
+      <div id="assetsFeed">
+        <div class="empty-state">
+          <div class="empty-state-icon">&#128230;</div>
+          <div class="empty-state-text">No knowledge assets yet</div>
+          <div class="empty-state-hint">Assets are created via the sink-asset API or synced from L2 repo</div>
         </div>
       </div>
     </div>
@@ -928,6 +1319,218 @@
       document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
       document.getElementById('observationsTab').style.display = tab === 'observations' ? '' : 'none';
       document.getElementById('knowledgeTab').style.display = tab === 'knowledge' ? '' : 'none';
+      document.getElementById('assetsTab').style.display = tab === 'assets' ? '' : 'none';
+
+      if (tab === 'assets') loadAssets();
+    }
+
+    // Load knowledge asset stats
+    async function loadAssetStats() {
+      try {
+        const res = await fetch(API + '/api/stats/knowledge');
+        if (!res.ok) return;
+        const { data } = await res.json();
+
+        document.getElementById('statAssets').textContent = data.total ?? 0;
+        document.getElementById('statPromoted').textContent = data.promoted ?? 0;
+
+        const unpromoted = (data.total || 0) - (data.promoted || 0);
+        document.getElementById('statAssetsDetail').textContent =
+          `${unpromoted} unpromoted, ${Object.keys(data.by_type || {}).length} types`;
+      } catch {}
+    }
+
+    // Load knowledge assets list
+    async function loadAssets() {
+      try {
+        const type = document.getElementById('assetTypeFilter').value;
+        const product_line = document.getElementById('assetProductFilter').value;
+        const promoted = document.getElementById('assetPromotedFilter').value;
+
+        const params = new URLSearchParams();
+        if (type) params.set('type', type);
+        if (product_line) params.set('product_line', product_line);
+        if (promoted) params.set('promoted', promoted);
+        params.set('limit', '50');
+
+        const res = await fetch(API + '/api/knowledge-assets/list?' + params.toString());
+        if (!res.ok) return;
+        const { data } = await res.json();
+
+        renderAssets(data.items || data.results || []);
+      } catch {
+        // Silent - assets may not exist yet
+      }
+    }
+
+    // Search knowledge assets
+    async function searchAssets() {
+      const query = document.getElementById('assetSearchInput').value.trim();
+      if (!query) {
+        loadAssets();
+        return;
+      }
+
+      try {
+        const type = document.getElementById('assetTypeFilter').value;
+        const product_line = document.getElementById('assetProductFilter').value;
+
+        const params = new URLSearchParams({ query });
+        if (type) params.set('type', type);
+        if (product_line) params.set('product_line', product_line);
+
+        const res = await fetch(API + '/api/knowledge-assets/search?' + params.toString());
+        if (!res.ok) return;
+        const { data } = await res.json();
+
+        renderAssets(data.items || data.results || []);
+      } catch {}
+    }
+
+    // Render asset items
+    function renderAssets(items) {
+      const feed = document.getElementById('assetsFeed');
+      if (!items || items.length === 0) {
+        feed.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">&#128230;</div>
+            <div class="empty-state-text">No knowledge assets found</div>
+            <div class="empty-state-hint">Try adjusting your filters or create assets via the sink-asset API</div>
+          </div>`;
+        return;
+      }
+
+      feed.innerHTML = items.map(a => `
+        <div class="asset-item">
+          <div class="asset-item-header">
+            <span class="asset-type-badge">${escapeHtml(a.type || 'other')}</span>
+            <span class="asset-product-badge">${escapeHtml(a.product_line || 'general')}</span>
+            ${a.promoted ? '<span class="asset-promoted-badge">L2 SYNCED</span>' : ''}
+            <span class="asset-title">${escapeHtml(a.title || a.name)}</span>
+          </div>
+          ${a.content ? `<div class="asset-body">${escapeHtml(a.content.substring(0, 200))}${a.content.length > 200 ? '...' : ''}</div>` : ''}
+          <div class="asset-meta">
+            <span>name: ${escapeHtml(a.name)}</span>
+            ${a.tags ? `<span>tags: ${escapeHtml(a.tags)}</span>` : ''}
+            ${a.source_project ? `<span>project: ${escapeHtml(a.source_project)}</span>` : ''}
+            ${a.created_at ? `<span>${formatTime(a.created_at)}</span>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Enter key for asset search
+    document.getElementById('assetSearchInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') searchAssets();
+    });
+
+    // Sync functions
+    async function triggerSync(direction) {
+      const btnMap = { pull: 'syncPullBtn', push: 'syncPushBtn', both: 'syncBothBtn' };
+      const btn = document.getElementById(btnMap[direction]);
+      const msgEl = document.getElementById('syncResultMsg');
+
+      btn.disabled = true;
+      btn.textContent = '...';
+      document.getElementById('syncStatusDot').className = 'sync-status-dot syncing';
+      document.getElementById('syncStatusText').textContent = 'syncing...';
+
+      try {
+        const res = await fetch(API + '/api/sync/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direction }),
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          document.getElementById('syncStatusDot').className = 'sync-status-dot synced';
+          document.getElementById('syncStatusText').textContent = 'synced';
+          msgEl.textContent = 'Sync completed successfully.';
+          msgEl.style.color = 'var(--color-accent-success)';
+
+          // Refresh asset stats
+          loadAssetStats();
+        } else {
+          document.getElementById('syncStatusDot').className = 'sync-status-dot error';
+          document.getElementById('syncStatusText').textContent = 'error';
+          msgEl.textContent = 'Sync failed: ' + (result.error || 'unknown');
+          msgEl.style.color = 'var(--color-accent-error)';
+        }
+        msgEl.style.display = 'block';
+        setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
+      } catch (err) {
+        document.getElementById('syncStatusDot').className = 'sync-status-dot error';
+        document.getElementById('syncStatusText').textContent = 'error';
+        msgEl.textContent = 'Sync failed: ' + err.message;
+        msgEl.style.color = 'var(--color-accent-error)';
+        msgEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = direction === 'both' ? 'Sync Both' : direction.charAt(0).toUpperCase() + direction.slice(1);
+      }
+    }
+
+    // Config functions
+    async function loadConfig() {
+      try {
+        const res = await fetch(API + '/api/config/read');
+        if (!res.ok) return;
+        const { data } = await res.json();
+
+        // data is an array of {key, value}
+        const configMap = {};
+        if (Array.isArray(data)) {
+          data.forEach(item => { configMap[item.key] = item.value; });
+        }
+
+        // L2 Repo URL
+        const repoUrl = configMap['L2_REPO_URL'] || '';
+        document.getElementById('configL2RepoUrl').value = repoUrl;
+
+        // Auto sync toggle
+        const autoSync = configMap['AUTO_SYNC_ON_SESSION_START'] === 'true';
+        const toggleEl = document.getElementById('configAutoSync');
+        toggleEl.classList.toggle('on', autoSync);
+        document.getElementById('autoSyncLabel').textContent = autoSync ? 'On' : 'Off';
+
+        // Update sync status
+        if (repoUrl) {
+          document.getElementById('syncStatusDot').className = 'sync-status-dot synced';
+          document.getElementById('syncStatusText').textContent = 'configured';
+        } else {
+          document.getElementById('syncStatusDot').className = 'sync-status-dot';
+          document.getElementById('syncStatusText').textContent = 'not configured';
+        }
+      } catch {}
+    }
+
+    async function saveConfig(key, value) {
+      try {
+        await fetch(API + '/api/config/write', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value }),
+        });
+
+        // Update sync status display if repo URL changed
+        if (key === 'L2_REPO_URL') {
+          if (value) {
+            document.getElementById('syncStatusDot').className = 'sync-status-dot synced';
+            document.getElementById('syncStatusText').textContent = 'configured';
+          } else {
+            document.getElementById('syncStatusDot').className = 'sync-status-dot';
+            document.getElementById('syncStatusText').textContent = 'not configured';
+          }
+        }
+      } catch {}
+    }
+
+    function toggleAutoSync() {
+      const toggleEl = document.getElementById('configAutoSync');
+      const isOn = toggleEl.classList.toggle('on');
+      document.getElementById('autoSyncLabel').textContent = isOn ? 'On' : 'Off';
+      saveConfig('AUTO_SYNC_ON_SESSION_START', isOn ? 'true' : 'false');
     }
 
     // Init
@@ -936,11 +1539,14 @@
       await loadStats();
       loadObservations();
       loadKnowledge();
+      loadAssetStats();
+      loadConfig();
 
       // Auto-refresh every 30s
       setInterval(() => {
         loadStatus();
         loadStats();
+        loadAssetStats();
       }, 30000);
     }
 

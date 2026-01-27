@@ -34,6 +34,7 @@ async function main() {
     external: [
       'better-sqlite3',
       '@anthropic-ai/sdk',
+      '@modelcontextprotocol/sdk',
     ],
   };
 
@@ -58,6 +59,17 @@ async function main() {
     },
   });
   console.log('✓ Built worker-cli.cjs');
+
+  // Build MCP server
+  await build({
+    ...commonOptions,
+    entryPoints: [join(SRC, 'mcp', 'entrance-mcp-server.ts')],
+    outfile: join(SCRIPTS, 'entrance-mcp-server.cjs'),
+    banner: {
+      js: '#!/usr/bin/env node',
+    },
+  });
+  console.log('✓ Built entrance-mcp-server.cjs');
 
   // Copy config files if they exist in src
   const configSrc = join(ROOT, 'plugins', 'ai-agent-entrance', 'config');

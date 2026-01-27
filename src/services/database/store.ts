@@ -14,6 +14,12 @@ import type {
   KnowledgeRow,
   KnowledgeInput,
   SessionSummaryRow,
+  KnowledgeAssetRow,
+  KnowledgeAssetInput,
+  KnowledgeAssetType,
+  SyncLogRow,
+  SyncDirection,
+  ConfigRow,
 } from '../../shared/types.js';
 
 export class DatabaseStore {
@@ -392,6 +398,225 @@ export class DatabaseStore {
       LIMIT ?
     `);
     return stmt.all(project, limit) as SessionSummaryRow[];
+  }
+
+  // ============================================================================
+  // Knowledge Assets (L1 Cache)
+  // ============================================================================
+
+  createKnowledgeAsset(input: KnowledgeAssetInput): KnowledgeAssetRow {
+    const db = this.getDb();
+    const now = new Date();
+
+    const stmt = db.prepare(`
+      INSERT INTO knowledge_assets (
+        type, name, product_line, tags, title, content,
+        source_project, l2_path, promoted,
+        created_at, created_at_epoch, updated_at, updated_at_epoch
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      input.type,
+      input.name,
+      input.product_line,
+      input.tags ? JSON.stringify(input.tags) : null,
+      input.title,
+      input.content,
+      input.source_project || null,
+      input.l2_path || null,
+      now.toISOString(),
+      now.getTime(),
+      now.toISOString(),
+      now.getTime()
+    );
+
+    return this.getKnowledgeAsset(result.lastInsertRowid as number)!;
+  }
+
+  getKnowledgeAsset(id: number): KnowledgeAssetRow | null {
+    const db = this.getDb();
+    const stmt = db.prepare(`SELECT * FROM knowledge_assets WHERE id = ?`);
+    return stmt.get(id) as KnowledgeAssetRow | null;
+  }
+
+  getKnowledgeAssetByPath(l2Path: string): KnowledgeAssetRow | null {
+    const db = this.getDb();
+    const stmt = db.prepare(`SELECT * FROM knowledge_assets WHERE l2_path = ?`);
+    return stmt.get(l2Path) as KnowledgeAssetRow | null;
+  }
+
+  getKnowledgeAssetByName(name: string, productLine: string): KnowledgeAssetRow | null {
+    const db = this.getDb();
+    const stmt = db.prepare(`SELECT * FROM knowledge_assets WHERE name = ? AND product_line = ?`);
+    return stmt.get(name, productLine) as KnowledgeAssetRow | null;
+  }
+
+  upsertKnowledgeAsset(input: KnowledgeAssetInput): KnowledgeAssetRow {
+    const existing = this.getKnowledgeAssetByName(input.name, input.product_line);
+    if (existing) {
+      const db = this.getDb();
+      const now = new Date();
+      const stmt = db.prepare(`
+        UPDATE knowledge_assets SET
+          type = ?, tags = ?, title = ?, content = ?,
+          source_project = ?, l2_path = ?,
+          updated_at = ?, updated_at_epoch = ?
+        WHERE id = ?
+      `);
+      stmt.run(
+        input.type,
+        input.tags ? JSON.stringify(input.tags) : null,
+        input.title,
+        input.content,
+        input.source_project || existing.source_project,
+        input.l2_path || existing.l2_path,
+        now.toISOString(),
+        now.getTime(),
+        existing.id
+      );
+      return this.getKnowledgeAsset(existing.id)!;
+    }
+    return this.createKnowledgeAsset(input);
+  }
+
+  listKnowledgeAssets(filters?: {
+    type?: KnowledgeAssetType;
+    product_line?: string;
+    promoted?: boolean;
+    limit?: number;
+    offset?: number;
+  }): KnowledgeAssetRow[] {
+    const db = this.getDb();
+    const where: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters?.type) {
+      where.push('type = ?');
+      params.push(filters.type);
+    }
+    if (filters?.product_line) {
+      where.push('product_line = ?');
+      params.push(filters.product_line);
+    }
+    if (filters?.promoted !== undefined) {
+      where.push('promoted = ?');
+      params.push(filters.promoted ? 1 : 0);
+    }
+
+    const whereSQL = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const limit = filters?.limit || 50;
+    const offset = filters?.offset || 0;
+
+    const stmt = db.prepare(`
+      SELECT * FROM knowledge_assets
+      ${whereSQL}
+      ORDER BY updated_at_epoch DESC
+      LIMIT ? OFFSET ?
+    `);
+
+    params.push(limit, offset);
+    return stmt.all(...params) as KnowledgeAssetRow[];
+  }
+
+  markAssetPromoted(id: number, l2Path: string): void {
+    const db = this.getDb();
+    const now = new Date();
+    const stmt = db.prepare(`
+      UPDATE knowledge_assets
+      SET promoted = 1, l2_path = ?, updated_at = ?, updated_at_epoch = ?
+      WHERE id = ?
+    `);
+    stmt.run(l2Path, now.toISOString(), now.getTime(), id);
+  }
+
+  getUnpromotedAssets(): KnowledgeAssetRow[] {
+    const db = this.getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM knowledge_assets
+      WHERE promoted = 0
+      ORDER BY created_at_epoch ASC
+    `);
+    return stmt.all() as KnowledgeAssetRow[];
+  }
+
+  // ============================================================================
+  // Sync Log
+  // ============================================================================
+
+  createSyncLog(entry: {
+    direction: SyncDirection;
+    file_path?: string;
+    git_commit_sha?: string;
+    status: 'success' | 'failed' | 'skipped';
+    message?: string;
+  }): SyncLogRow {
+    const db = this.getDb();
+    const now = new Date();
+
+    const stmt = db.prepare(`
+      INSERT INTO sync_log (direction, file_path, git_commit_sha, status, message, created_at, created_at_epoch)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      entry.direction,
+      entry.file_path || null,
+      entry.git_commit_sha || null,
+      entry.status,
+      entry.message || null,
+      now.toISOString(),
+      now.getTime()
+    );
+
+    return db.prepare(`SELECT * FROM sync_log WHERE id = ?`).get(result.lastInsertRowid) as SyncLogRow;
+  }
+
+  getRecentSyncLogs(limit: number = 20): SyncLogRow[] {
+    const db = this.getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM sync_log
+      ORDER BY created_at_epoch DESC
+      LIMIT ?
+    `);
+    return stmt.all(limit) as SyncLogRow[];
+  }
+
+  getLastSuccessfulSync(direction: SyncDirection): SyncLogRow | null {
+    const db = this.getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM sync_log
+      WHERE direction = ? AND status = 'success'
+      ORDER BY created_at_epoch DESC
+      LIMIT 1
+    `);
+    return stmt.get(direction) as SyncLogRow | null;
+  }
+
+  // ============================================================================
+  // Config (Key-Value)
+  // ============================================================================
+
+  getConfigValue(key: string): string | null {
+    const db = this.getDb();
+    const stmt = db.prepare(`SELECT value FROM config WHERE key = ?`);
+    const row = stmt.get(key) as { value: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  setConfigValue(key: string, value: string): void {
+    const db = this.getDb();
+    const now = new Date().toISOString();
+    const stmt = db.prepare(`
+      INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `);
+    stmt.run(key, value, now);
+  }
+
+  getAllConfig(): ConfigRow[] {
+    const db = this.getDb();
+    return db.prepare(`SELECT * FROM config ORDER BY key`).all() as ConfigRow[];
   }
 }
 

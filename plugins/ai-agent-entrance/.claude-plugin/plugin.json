@@ -1,7 +1,7 @@
 {
   "name": "ai-agent-entrance",
-  "version": "2.0.0",
-  "description": "智能路由与知识沉淀 - 自动识别任务类型、推荐最佳开发流程、沉淀可复用知识",
+  "version": "2.1.0",
+  "description": "智能路由与知识沉淀 - 自动识别任务类型、推荐最佳开发流程、沉淀可复用知识、L1↔L2知识同步",
   "author": {
     "name": "Larry Yan",
     "url": "https://github.com/LeiYanAdmin"
@@ -15,6 +15,12 @@
     "ai-development",
     "claude-code-plugin",
     "lifecycle-hooks",
-    "semantic-compression"
-  ]
+    "semantic-compression",
+    "mcp-server",
+    "knowledge-sync"
+  ],
+  "mcp": {
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/entrance-mcp-server.cjs"]
+  }
 }

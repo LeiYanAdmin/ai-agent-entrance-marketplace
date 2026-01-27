@@ -36,6 +36,11 @@ export const DEFAULTS = {
 
   // Skip tools (don't capture observations for these)
   SKIP_TOOLS: 'ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion,TaskList,TaskGet',
+
+  // L2 Sync settings
+  L2_REPO_URL: '',
+  AUTO_SYNC_ON_SESSION_START: 'false',
+  SYNC_CONFLICT_STRATEGY: 'remote-wins',
 };
 
 export type ConfigKey = keyof typeof DEFAULTS;
@@ -72,6 +77,14 @@ export function getPluginRoot(): string {
 
 export function getGlobalKnowledgeRepo(): string {
   return process.env.AI_ENTRANCE_KNOWLEDGE_REPO || DEFAULTS.GLOBAL_KNOWLEDGE_REPO;
+}
+
+export function getL2RepoPath(): string {
+  return process.env.AI_ENTRANCE_L2_REPO || join(getGlobalKnowledgeRepo());
+}
+
+export function getL2IndexPath(): string {
+  return join(getL2RepoPath(), 'knowledge', '_index.json');
 }
 
 // ============================================================================

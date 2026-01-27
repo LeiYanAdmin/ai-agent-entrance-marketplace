@@ -18373,10 +18373,10 @@ var require_view = __commonJS({
     var debug = require_src()("express:view");
     var path = require("path");
     var fs = require("fs");
-    var dirname = path.dirname;
+    var dirname2 = path.dirname;
     var basename = path.basename;
     var extname = path.extname;
-    var join5 = path.join;
+    var join6 = path.join;
     var resolve = path.resolve;
     module2.exports = View;
     function View(name, options) {
@@ -18412,7 +18412,7 @@ var require_view = __commonJS({
       for (var i = 0; i < roots.length && !path2; i++) {
         var root = roots[i];
         var loc = resolve(root, name);
-        var dir = dirname(loc);
+        var dir = dirname2(loc);
         var file = basename(loc);
         path2 = this.resolve(dir, file);
       }
@@ -18424,12 +18424,12 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve2(dir, file) {
       var ext = this.ext;
-      var path2 = join5(dir, file);
+      var path2 = join6(dir, file);
       var stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
       }
-      path2 = join5(dir, basename(file, ext), "index" + ext);
+      path2 = join6(dir, basename(file, ext), "index" + ext);
       stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
@@ -19062,7 +19062,7 @@ var require_send = __commonJS({
     var Stream = require("stream");
     var util = require("util");
     var extname = path.extname;
-    var join5 = path.join;
+    var join6 = path.join;
     var normalize = path.normalize;
     var resolve = path.resolve;
     var sep = path.sep;
@@ -19281,7 +19281,7 @@ var require_send = __commonJS({
           return res;
         }
         parts = path2.split(sep);
-        path2 = normalize(join5(root, path2));
+        path2 = normalize(join6(root, path2));
       } else {
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
@@ -19416,7 +19416,7 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join5(path2, self._index[i]);
+        var p = join6(path2, self._index[i]);
         debug('stat "%s"', p);
         fs.stat(p, function(err2, stat) {
           if (err2) return next(err2);
@@ -29849,7 +29849,7 @@ __export(worker_service_exports, {
 module.exports = __toCommonJS(worker_service_exports);
 var import_express = __toESM(require_express2(), 1);
 var import_http = require("http");
-var import_path4 = require("path");
+var import_path5 = require("path");
 
 // src/shared/config.ts
 var import_fs = require("fs");
@@ -29874,7 +29874,11 @@ var DEFAULTS = {
   GLOBAL_KNOWLEDGE_REPO: (0, import_path.join)((0, import_os.homedir)(), "compound-knowledge"),
   AUTO_SINK_ON_STOP: "true",
   // Skip tools (don't capture observations for these)
-  SKIP_TOOLS: "ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion,TaskList,TaskGet"
+  SKIP_TOOLS: "ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion,TaskList,TaskGet",
+  // L2 Sync settings
+  L2_REPO_URL: "",
+  AUTO_SYNC_ON_SESSION_START: "false",
+  SYNC_CONFLICT_STRATEGY: "remote-wins"
 };
 function getDataDir() {
   return process.env.AI_ENTRANCE_DATA_DIR || DEFAULTS.DATA_DIR;
@@ -29893,6 +29897,12 @@ function getSettingsPath() {
 }
 function getPluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || (0, import_path.join)(__dirname, "..");
+}
+function getGlobalKnowledgeRepo() {
+  return process.env.AI_ENTRANCE_KNOWLEDGE_REPO || DEFAULTS.GLOBAL_KNOWLEDGE_REPO;
+}
+function getL2RepoPath() {
+  return process.env.AI_ENTRANCE_L2_REPO || (0, import_path.join)(getGlobalKnowledgeRepo());
 }
 function loadSettings() {
   const settingsPath = getSettingsPath();
@@ -30062,7 +30072,7 @@ var logger = new Logger();
 var import_better_sqlite3 = __toESM(require("better-sqlite3"), 1);
 
 // src/services/database/schema.ts
-var SCHEMA_VERSION = 1;
+var SCHEMA_VERSION = 2;
 var MIGRATIONS = {
   1: [
     // Sessions table
@@ -30199,7 +30209,98 @@ var MIGRATIONS = {
     `CREATE TABLE IF NOT EXISTS schema_version (
       version INTEGER PRIMARY KEY
     )`,
-    `INSERT OR REPLACE INTO schema_version (version) VALUES (${SCHEMA_VERSION})`
+    `INSERT OR REPLACE INTO schema_version (version) VALUES (1)`
+  ],
+  2: [
+    // Knowledge Assets table (L1 cache)
+    `CREATE TABLE IF NOT EXISTS knowledge_assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK(type IN ('pitfall', 'adr', 'glossary', 'best-practice', 'pattern', 'discovery', 'skill', 'reference')),
+      name TEXT NOT NULL,
+      product_line TEXT NOT NULL DEFAULT 'general',
+      tags TEXT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source_project TEXT,
+      l2_path TEXT,
+      promoted INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      created_at_epoch INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_at_epoch INTEGER NOT NULL,
+      UNIQUE(name, product_line)
+    )`,
+    // Indexes for knowledge_assets
+    `CREATE INDEX IF NOT EXISTS idx_ka_type ON knowledge_assets(type)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_product_line ON knowledge_assets(product_line)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_promoted ON knowledge_assets(promoted)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_name ON knowledge_assets(name)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_l2_path ON knowledge_assets(l2_path)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_updated ON knowledge_assets(updated_at_epoch DESC)`,
+    // FTS5 for knowledge_assets
+    `CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_assets_fts USING fts5(
+      name,
+      title,
+      content,
+      tags,
+      product_line,
+      content='knowledge_assets',
+      content_rowid='id'
+    )`,
+    // Knowledge Assets FTS triggers
+    `CREATE TRIGGER IF NOT EXISTS ka_fts_ai AFTER INSERT ON knowledge_assets BEGIN
+      INSERT INTO knowledge_assets_fts(rowid, name, title, content, tags, product_line)
+      VALUES (new.id, new.name, new.title, new.content, new.tags, new.product_line);
+    END`,
+    `CREATE TRIGGER IF NOT EXISTS ka_fts_ad AFTER DELETE ON knowledge_assets BEGIN
+      INSERT INTO knowledge_assets_fts(knowledge_assets_fts, rowid, name, title, content, tags, product_line)
+      VALUES ('delete', old.id, old.name, old.title, old.content, old.tags, old.product_line);
+    END`,
+    `CREATE TRIGGER IF NOT EXISTS ka_fts_au AFTER UPDATE ON knowledge_assets BEGIN
+      INSERT INTO knowledge_assets_fts(knowledge_assets_fts, rowid, name, title, content, tags, product_line)
+      VALUES ('delete', old.id, old.name, old.title, old.content, old.tags, old.product_line);
+      INSERT INTO knowledge_assets_fts(rowid, name, title, content, tags, product_line)
+      VALUES (new.id, new.name, new.title, new.content, new.tags, new.product_line);
+    END`,
+    // Sync log table
+    `CREATE TABLE IF NOT EXISTS sync_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      direction TEXT NOT NULL CHECK(direction IN ('pull', 'push', 'both')),
+      file_path TEXT,
+      git_commit_sha TEXT,
+      status TEXT NOT NULL CHECK(status IN ('success', 'failed', 'skipped')),
+      message TEXT,
+      created_at TEXT NOT NULL,
+      created_at_epoch INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_sync_log_direction ON sync_log(direction)`,
+    `CREATE INDEX IF NOT EXISTS idx_sync_log_status ON sync_log(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_sync_log_created ON sync_log(created_at_epoch DESC)`,
+    // Config key-value table
+    `CREATE TABLE IF NOT EXISTS config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    // Migrate existing knowledge rows → knowledge_assets
+    `INSERT OR IGNORE INTO knowledge_assets (type, name, product_line, tags, title, content, source_project, l2_path, promoted, created_at, created_at_epoch, updated_at, updated_at_epoch)
+     SELECT
+       type,
+       'legacy-' || id,
+       COALESCE(project, 'general'),
+       tags,
+       title,
+       content,
+       project,
+       file_path,
+       CASE WHEN synced_at IS NOT NULL THEN 1 ELSE 0 END,
+       created_at,
+       created_at_epoch,
+       COALESCE(synced_at, created_at),
+       created_at_epoch
+     FROM knowledge`,
+    // Update schema version
+    `UPDATE schema_version SET version = 2`
   ]
 };
 function getMigrationSQL(fromVersion, toVersion) {
@@ -30523,6 +30624,186 @@ var DatabaseStore = class {
     `);
     return stmt.all(project, limit);
   }
+  // ============================================================================
+  // Knowledge Assets (L1 Cache)
+  // ============================================================================
+  createKnowledgeAsset(input) {
+    const db = this.getDb();
+    const now = /* @__PURE__ */ new Date();
+    const stmt = db.prepare(`
+      INSERT INTO knowledge_assets (
+        type, name, product_line, tags, title, content,
+        source_project, l2_path, promoted,
+        created_at, created_at_epoch, updated_at, updated_at_epoch
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+      input.type,
+      input.name,
+      input.product_line,
+      input.tags ? JSON.stringify(input.tags) : null,
+      input.title,
+      input.content,
+      input.source_project || null,
+      input.l2_path || null,
+      now.toISOString(),
+      now.getTime(),
+      now.toISOString(),
+      now.getTime()
+    );
+    return this.getKnowledgeAsset(result.lastInsertRowid);
+  }
+  getKnowledgeAsset(id) {
+    const db = this.getDb();
+    const stmt = db.prepare(`SELECT * FROM knowledge_assets WHERE id = ?`);
+    return stmt.get(id);
+  }
+  getKnowledgeAssetByPath(l2Path) {
+    const db = this.getDb();
+    const stmt = db.prepare(`SELECT * FROM knowledge_assets WHERE l2_path = ?`);
+    return stmt.get(l2Path);
+  }
+  getKnowledgeAssetByName(name, productLine) {
+    const db = this.getDb();
+    const stmt = db.prepare(`SELECT * FROM knowledge_assets WHERE name = ? AND product_line = ?`);
+    return stmt.get(name, productLine);
+  }
+  upsertKnowledgeAsset(input) {
+    const existing = this.getKnowledgeAssetByName(input.name, input.product_line);
+    if (existing) {
+      const db = this.getDb();
+      const now = /* @__PURE__ */ new Date();
+      const stmt = db.prepare(`
+        UPDATE knowledge_assets SET
+          type = ?, tags = ?, title = ?, content = ?,
+          source_project = ?, l2_path = ?,
+          updated_at = ?, updated_at_epoch = ?
+        WHERE id = ?
+      `);
+      stmt.run(
+        input.type,
+        input.tags ? JSON.stringify(input.tags) : null,
+        input.title,
+        input.content,
+        input.source_project || existing.source_project,
+        input.l2_path || existing.l2_path,
+        now.toISOString(),
+        now.getTime(),
+        existing.id
+      );
+      return this.getKnowledgeAsset(existing.id);
+    }
+    return this.createKnowledgeAsset(input);
+  }
+  listKnowledgeAssets(filters) {
+    const db = this.getDb();
+    const where = [];
+    const params = [];
+    if (filters?.type) {
+      where.push("type = ?");
+      params.push(filters.type);
+    }
+    if (filters?.product_line) {
+      where.push("product_line = ?");
+      params.push(filters.product_line);
+    }
+    if (filters?.promoted !== void 0) {
+      where.push("promoted = ?");
+      params.push(filters.promoted ? 1 : 0);
+    }
+    const whereSQL = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+    const limit = filters?.limit || 50;
+    const offset = filters?.offset || 0;
+    const stmt = db.prepare(`
+      SELECT * FROM knowledge_assets
+      ${whereSQL}
+      ORDER BY updated_at_epoch DESC
+      LIMIT ? OFFSET ?
+    `);
+    params.push(limit, offset);
+    return stmt.all(...params);
+  }
+  markAssetPromoted(id, l2Path) {
+    const db = this.getDb();
+    const now = /* @__PURE__ */ new Date();
+    const stmt = db.prepare(`
+      UPDATE knowledge_assets
+      SET promoted = 1, l2_path = ?, updated_at = ?, updated_at_epoch = ?
+      WHERE id = ?
+    `);
+    stmt.run(l2Path, now.toISOString(), now.getTime(), id);
+  }
+  getUnpromotedAssets() {
+    const db = this.getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM knowledge_assets
+      WHERE promoted = 0
+      ORDER BY created_at_epoch ASC
+    `);
+    return stmt.all();
+  }
+  // ============================================================================
+  // Sync Log
+  // ============================================================================
+  createSyncLog(entry) {
+    const db = this.getDb();
+    const now = /* @__PURE__ */ new Date();
+    const stmt = db.prepare(`
+      INSERT INTO sync_log (direction, file_path, git_commit_sha, status, message, created_at, created_at_epoch)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+      entry.direction,
+      entry.file_path || null,
+      entry.git_commit_sha || null,
+      entry.status,
+      entry.message || null,
+      now.toISOString(),
+      now.getTime()
+    );
+    return db.prepare(`SELECT * FROM sync_log WHERE id = ?`).get(result.lastInsertRowid);
+  }
+  getRecentSyncLogs(limit = 20) {
+    const db = this.getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM sync_log
+      ORDER BY created_at_epoch DESC
+      LIMIT ?
+    `);
+    return stmt.all(limit);
+  }
+  getLastSuccessfulSync(direction) {
+    const db = this.getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM sync_log
+      WHERE direction = ? AND status = 'success'
+      ORDER BY created_at_epoch DESC
+      LIMIT 1
+    `);
+    return stmt.get(direction);
+  }
+  // ============================================================================
+  // Config (Key-Value)
+  // ============================================================================
+  getConfigValue(key) {
+    const db = this.getDb();
+    const stmt = db.prepare(`SELECT value FROM config WHERE key = ?`);
+    const row = stmt.get(key);
+    return row?.value ?? null;
+  }
+  setConfigValue(key, value) {
+    const db = this.getDb();
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const stmt = db.prepare(`
+      INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `);
+    stmt.run(key, value, now);
+  }
+  getAllConfig() {
+    const db = this.getDb();
+    return db.prepare(`SELECT * FROM config ORDER BY key`).all();
+  }
 };
 var storeInstance = null;
 function getStore() {
@@ -30668,6 +30949,103 @@ var SearchService = class {
     `
     ).all(project, limit);
     return { observations, knowledge };
+  }
+  // ============================================================================
+  // Index Stats
+  // ============================================================================
+  // ============================================================================
+  // Knowledge Asset Search
+  // ============================================================================
+  searchKnowledgeAssets(query, options = {}) {
+    const db = this.getDb();
+    const { product_line, type, limit = 20, offset = 0, orderBy = "relevance" } = options;
+    const whereClauses = [];
+    const params = [];
+    if (product_line) {
+      whereClauses.push("ka.product_line = ?");
+      params.push(product_line);
+    }
+    if (type) {
+      whereClauses.push("ka.type = ?");
+      params.push(type);
+    }
+    const whereSQL = whereClauses.length > 0 ? `AND ${whereClauses.join(" AND ")}` : "";
+    const orderSQL = orderBy === "relevance" ? "ORDER BY rank" : orderBy === "date_desc" ? "ORDER BY ka.updated_at_epoch DESC" : "ORDER BY ka.updated_at_epoch ASC";
+    const sql = `
+      SELECT ka.*, fts.rank
+      FROM knowledge_assets ka
+      JOIN knowledge_assets_fts fts ON ka.id = fts.rowid
+      WHERE knowledge_assets_fts MATCH ?
+      ${whereSQL}
+      ${orderSQL}
+      LIMIT ? OFFSET ?
+    `;
+    params.unshift(query);
+    params.push(limit + 1, offset);
+    const rows = db.prepare(sql).all(...params);
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const countSQL = `
+      SELECT COUNT(*) as total
+      FROM knowledge_assets ka
+      JOIN knowledge_assets_fts fts ON ka.id = fts.rowid
+      WHERE knowledge_assets_fts MATCH ?
+      ${whereSQL}
+    `;
+    const countParams = [query, ...params.slice(1, -2)];
+    const { total } = db.prepare(countSQL).get(...countParams);
+    return { items, total, hasMore };
+  }
+  getAssetStats(productLine) {
+    const db = this.getDb();
+    const plFilter = productLine ? " WHERE product_line = ?" : "";
+    const plParams = productLine ? [productLine] : [];
+    const total = db.prepare(`SELECT COUNT(*) as count FROM knowledge_assets${plFilter}`).get(...plParams).count;
+    const promoted = db.prepare(`SELECT COUNT(*) as count FROM knowledge_assets WHERE promoted = 1${productLine ? " AND product_line = ?" : ""}`).get(...plParams).count;
+    const typeRows = db.prepare(`SELECT type, COUNT(*) as count FROM knowledge_assets${plFilter} GROUP BY type`).all(...plParams);
+    const by_type = {};
+    for (const row of typeRows) {
+      by_type[row.type] = row.count;
+    }
+    const plRows = db.prepare(`SELECT product_line, COUNT(*) as count FROM knowledge_assets${plFilter} GROUP BY product_line`).all(...plParams);
+    const by_product_line = {};
+    for (const row of plRows) {
+      by_product_line[row.product_line] = row.count;
+    }
+    return { total, by_type, by_product_line, promoted, unpromoted: total - promoted };
+  }
+  listAssets(filters) {
+    const db = this.getDb();
+    const where = [];
+    const params = [];
+    if (filters?.type) {
+      where.push("type = ?");
+      params.push(filters.type);
+    }
+    if (filters?.product_line) {
+      where.push("product_line = ?");
+      params.push(filters.product_line);
+    }
+    if (filters?.promoted !== void 0) {
+      where.push("promoted = ?");
+      params.push(filters.promoted ? 1 : 0);
+    }
+    const whereSQL = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+    const limit = filters?.limit || 50;
+    const offset = filters?.offset || 0;
+    const countSQL = `SELECT COUNT(*) as total FROM knowledge_assets ${whereSQL}`;
+    const { total } = db.prepare(countSQL).get(...params);
+    const sql = `
+      SELECT * FROM knowledge_assets
+      ${whereSQL}
+      ORDER BY updated_at_epoch DESC
+      LIMIT ? OFFSET ?
+    `;
+    params.push(limit + 1, offset);
+    const rows = db.prepare(sql).all(...params);
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    return { items, total, hasMore };
   }
   // ============================================================================
   // Index Stats
@@ -30903,11 +31281,11 @@ var RoutingService = class {
    */
   static async getInstalledTools() {
     const tools = [];
-    const { execSync } = await import("child_process");
+    const { execSync: execSync2 } = await import("child_process");
     const pluginsToCheck = ["superpowers", "compound-engineering", "openspec", "speckit", "bmad"];
     for (const plugin of pluginsToCheck) {
       try {
-        const result = execSync('claude plugin list 2>/dev/null || echo ""', {
+        const result = execSync2('claude plugin list 2>/dev/null || echo ""', {
           encoding: "utf-8",
           timeout: 5e3
         });
@@ -31360,6 +31738,741 @@ var ProcessManager = class {
   }
 };
 
+// src/services/sync/git-operations.ts
+var import_child_process2 = require("child_process");
+var import_fs5 = require("fs");
+var import_path4 = require("path");
+var GitOperations = class {
+  repoPath;
+  constructor(repoPath) {
+    this.repoPath = repoPath || getL2RepoPath();
+  }
+  getRepoPath() {
+    return this.repoPath;
+  }
+  /**
+   * Clone a remote repo or init a local one
+   */
+  cloneOrInit(remoteUrl) {
+    if ((0, import_fs5.existsSync)((0, import_path4.join)(this.repoPath, ".git"))) {
+      logger.info("GIT", `Repository already exists at ${this.repoPath}`);
+      return;
+    }
+    (0, import_fs5.mkdirSync)(this.repoPath, { recursive: true });
+    if (remoteUrl) {
+      logger.info("GIT", `Cloning ${remoteUrl}...`);
+      this.exec(`git clone "${remoteUrl}" "${this.repoPath}"`);
+    } else {
+      logger.info("GIT", `Initializing new repository at ${this.repoPath}`);
+      this.execInRepo("git init");
+      this.createDefaultStructure();
+      this.execInRepo("git add -A");
+      this.execInRepo('git commit -m "Initial knowledge repository structure"');
+    }
+  }
+  /**
+   * Pull latest changes from remote
+   */
+  pull() {
+    try {
+      if (!this.hasRemote()) {
+        return { success: true, commitSha: this.getLastCommitSha() };
+      }
+      this.execInRepo("git pull --rebase");
+      return { success: true, commitSha: this.getLastCommitSha() };
+    } catch (error) {
+      const msg = error.message;
+      logger.error("GIT", "Pull failed", {}, error);
+      return { success: false, error: msg };
+    }
+  }
+  /**
+   * Get files changed since a given commit
+   */
+  getChangedFilesSinceCommit(commitSha) {
+    try {
+      const output = this.execInRepo(`git diff --name-only ${commitSha} HEAD`);
+      return output.split("\n").filter((f) => f.trim().length > 0);
+    } catch {
+      return [];
+    }
+  }
+  /**
+   * Stage, commit, and optionally push
+   */
+  addAndCommit(message, files) {
+    try {
+      if (files && files.length > 0) {
+        for (const file of files) {
+          this.execInRepo(`git add "${file}"`);
+        }
+      } else {
+        this.execInRepo("git add -A");
+      }
+      const status = this.execInRepo("git status --porcelain");
+      if (!status.trim()) {
+        return { success: true, commitSha: this.getLastCommitSha() };
+      }
+      this.execInRepo(`git commit -m "${message.replace(/"/g, '\\"')}"`);
+      return { success: true, commitSha: this.getLastCommitSha() };
+    } catch (error) {
+      const msg = error.message;
+      logger.error("GIT", "Commit failed", {}, error);
+      return { success: false, error: msg };
+    }
+  }
+  /**
+   * Push to remote
+   */
+  push() {
+    try {
+      if (!this.hasRemote()) {
+        return { success: false, error: "No remote configured" };
+      }
+      this.execInRepo("git push");
+      return { success: true };
+    } catch (error) {
+      const msg = error.message;
+      logger.error("GIT", "Push failed", {}, error);
+      return { success: false, error: msg };
+    }
+  }
+  /**
+   * Get the latest commit SHA
+   */
+  getLastCommitSha() {
+    try {
+      return this.execInRepo("git rev-parse HEAD").trim();
+    } catch {
+      return "";
+    }
+  }
+  /**
+   * Check if the repo has a remote configured
+   */
+  hasRemote() {
+    try {
+      const output = this.execInRepo("git remote");
+      return output.trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * Add a remote URL
+   */
+  setRemote(url) {
+    try {
+      if (this.hasRemote()) {
+        this.execInRepo(`git remote set-url origin "${url}"`);
+      } else {
+        this.execInRepo(`git remote add origin "${url}"`);
+      }
+    } catch (error) {
+      logger.error("GIT", "Set remote failed", {}, error);
+    }
+  }
+  // ============================================================================
+  // File I/O within L2 repo
+  // ============================================================================
+  readFile(relativePath) {
+    const fullPath = (0, import_path4.join)(this.repoPath, relativePath);
+    if (!(0, import_fs5.existsSync)(fullPath)) return null;
+    return (0, import_fs5.readFileSync)(fullPath, "utf-8");
+  }
+  writeFile(relativePath, content) {
+    const fullPath = (0, import_path4.join)(this.repoPath, relativePath);
+    (0, import_fs5.mkdirSync)((0, import_path4.dirname)(fullPath), { recursive: true });
+    (0, import_fs5.writeFileSync)(fullPath, content, "utf-8");
+  }
+  fileExists(relativePath) {
+    return (0, import_fs5.existsSync)((0, import_path4.join)(this.repoPath, relativePath));
+  }
+  /**
+   * List all markdown files in the knowledge directory
+   */
+  listMarkdownFiles(dir = "knowledge") {
+    const fullDir = (0, import_path4.join)(this.repoPath, dir);
+    if (!(0, import_fs5.existsSync)(fullDir)) return [];
+    const results = [];
+    const walk = (currentDir, prefix) => {
+      const entries = (0, import_fs5.readdirSync)(currentDir);
+      for (const entry of entries) {
+        const fullPath = (0, import_path4.join)(currentDir, entry);
+        const relativePath = prefix ? `${prefix}/${entry}` : entry;
+        const stat = (0, import_fs5.statSync)(fullPath);
+        if (stat.isDirectory()) {
+          walk(fullPath, relativePath);
+        } else if (entry.endsWith(".md")) {
+          results.push(`${dir}/${relativePath}`);
+        }
+      }
+    };
+    walk(fullDir, "");
+    return results;
+  }
+  // ============================================================================
+  // Private helpers
+  // ============================================================================
+  createDefaultStructure() {
+    const dirs = [
+      "knowledge/exchange/core",
+      "knowledge/exchange/spot",
+      "knowledge/exchange/futures",
+      "knowledge/exchange/liquidity",
+      "knowledge/custody/mpc",
+      "knowledge/custody/wallet",
+      "knowledge/custody/security",
+      "knowledge/custody/compliance",
+      "knowledge/infra/devops",
+      "knowledge/infra/monitoring",
+      "knowledge/infra/deployment",
+      "knowledge/general"
+    ];
+    for (const dir of dirs) {
+      (0, import_fs5.mkdirSync)((0, import_path4.join)(this.repoPath, dir), { recursive: true });
+      const gitkeep = (0, import_path4.join)(this.repoPath, dir, ".gitkeep");
+      if (!(0, import_fs5.existsSync)(gitkeep)) {
+        (0, import_fs5.writeFileSync)(gitkeep, "", "utf-8");
+      }
+    }
+    const readme = `# Compound Knowledge Repository
+
+This repository stores curated knowledge assets produced by AI-assisted development sessions.
+
+## Structure
+
+\`\`\`
+knowledge/
+\u251C\u2500\u2500 exchange/        # Exchange product line
+\u2502   \u251C\u2500\u2500 core/        # Matching engine, order management
+\u2502   \u251C\u2500\u2500 spot/        # Spot trading
+\u2502   \u251C\u2500\u2500 futures/     # Derivatives, perpetual contracts
+\u2502   \u2514\u2500\u2500 liquidity/   # Market making, aggregation
+\u251C\u2500\u2500 custody/         # Custody product line
+\u2502   \u251C\u2500\u2500 mpc/         # MPC wallets
+\u2502   \u251C\u2500\u2500 wallet/      # Wallet management
+\u2502   \u251C\u2500\u2500 security/    # Security practices
+\u2502   \u2514\u2500\u2500 compliance/  # KYC/KYT/AML
+\u251C\u2500\u2500 infra/           # Infrastructure
+\u2502   \u251C\u2500\u2500 devops/      # CI/CD, tooling
+\u2502   \u251C\u2500\u2500 monitoring/  # Observability
+\u2502   \u2514\u2500\u2500 deployment/  # Deployment strategies
+\u2514\u2500\u2500 general/         # Cross-cutting concerns
+\`\`\`
+
+## Asset Types
+
+- **pitfall** \u2014 Gotchas and traps to avoid
+- **adr** \u2014 Architecture Decision Records
+- **glossary** \u2014 Term definitions
+- **best-practice** \u2014 Proven approaches
+- **pattern** \u2014 Design patterns
+- **discovery** \u2014 Code/system discoveries
+- **skill** \u2014 Reusable skills
+- **reference** \u2014 Reference materials
+`;
+    (0, import_fs5.writeFileSync)((0, import_path4.join)(this.repoPath, "README.md"), readme, "utf-8");
+  }
+  exec(command) {
+    return (0, import_child_process2.execSync)(command, { encoding: "utf-8", timeout: 3e4 });
+  }
+  execInRepo(command) {
+    return (0, import_child_process2.execSync)(command, { cwd: this.repoPath, encoding: "utf-8", timeout: 3e4 });
+  }
+};
+
+// src/services/sync/markdown-parser.ts
+var FRONTMATTER_REGEX = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
+var MarkdownParser = class _MarkdownParser {
+  /**
+   * Parse a markdown file with YAML frontmatter
+   */
+  static parse(content) {
+    const match = content.match(FRONTMATTER_REGEX);
+    if (!match) {
+      return { frontmatter: null, body: content };
+    }
+    const yamlStr = match[1];
+    const body = match[2].trim();
+    try {
+      const frontmatter = _MarkdownParser.parseYamlSimple(yamlStr);
+      return { frontmatter, body };
+    } catch {
+      return { frontmatter: null, body: content };
+    }
+  }
+  /**
+   * Serialize frontmatter + body back to markdown
+   */
+  static serialize(frontmatter, body) {
+    const yamlLines = [];
+    yamlLines.push(`type: ${frontmatter.type}`);
+    yamlLines.push(`name: ${frontmatter.name}`);
+    yamlLines.push(`product_line: ${frontmatter.product_line}`);
+    yamlLines.push(`title: "${frontmatter.title.replace(/"/g, '\\"')}"`);
+    if (frontmatter.tags && frontmatter.tags.length > 0) {
+      yamlLines.push(`tags: [${frontmatter.tags.map((t) => `"${t}"`).join(", ")}]`);
+    }
+    yamlLines.push(`created: ${frontmatter.created}`);
+    yamlLines.push(`updated: ${frontmatter.updated}`);
+    if (frontmatter.source_project) {
+      yamlLines.push(`source_project: ${frontmatter.source_project}`);
+    }
+    return `---
+${yamlLines.join("\n")}
+---
+
+${body}
+`;
+  }
+  /**
+   * Convert L2 markdown file to KnowledgeAssetInput
+   */
+  static toAssetInput(path, content) {
+    const { frontmatter, body } = _MarkdownParser.parse(content);
+    if (!frontmatter || !frontmatter.type || !frontmatter.name) {
+      return null;
+    }
+    return {
+      type: frontmatter.type,
+      name: frontmatter.name,
+      product_line: frontmatter.product_line || "general",
+      tags: frontmatter.tags || [],
+      title: frontmatter.title || frontmatter.name,
+      content: body,
+      source_project: frontmatter.source_project,
+      l2_path: path
+    };
+  }
+  /**
+   * Convert KnowledgeAssetInput to L2 markdown content
+   */
+  static fromAssetInput(asset, author) {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const frontmatter = {
+      type: asset.type,
+      name: asset.name,
+      product_line: asset.product_line,
+      title: asset.title,
+      tags: asset.tags || [],
+      created: now,
+      updated: now,
+      source_project: asset.source_project
+    };
+    return _MarkdownParser.serialize(frontmatter, asset.content);
+  }
+  /**
+   * Determine L2 file path for an asset based on its type and product_line
+   */
+  static getL2Path(asset) {
+    const productDir = asset.product_line.replace(/\./g, "/");
+    return `knowledge/${productDir}/${asset.name}.md`;
+  }
+  /**
+   * Simple YAML parser for frontmatter (handles flat key-value + arrays)
+   */
+  static parseYamlSimple(yaml) {
+    const result = {};
+    const lines = yaml.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const colonIdx = trimmed.indexOf(":");
+      if (colonIdx === -1) continue;
+      const key = trimmed.slice(0, colonIdx).trim();
+      let value = trimmed.slice(colonIdx + 1).trim();
+      if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+        value = value.slice(1, -1);
+      } else if (value.startsWith("[") && value.endsWith("]")) {
+        const inner = value.slice(1, -1);
+        value = inner.split(",").map((s) => {
+          s = s.trim();
+          if (s.startsWith('"') && s.endsWith('"') || s.startsWith("'") && s.endsWith("'")) {
+            return s.slice(1, -1);
+          }
+          return s;
+        }).filter((s) => s.length > 0);
+      }
+      result[key] = value;
+    }
+    return result;
+  }
+};
+
+// src/services/sync/index-generator.ts
+var IndexGenerator = class {
+  /**
+   * Generate index by walking L2 repo and parsing frontmatter
+   */
+  static generate(git) {
+    const files = git.listMarkdownFiles("knowledge");
+    const entries = [];
+    const byType = {};
+    const byProductLine = {};
+    for (const filePath of files) {
+      const content = git.readFile(filePath);
+      if (!content) continue;
+      const { frontmatter } = MarkdownParser.parse(content);
+      if (!frontmatter || !frontmatter.type || !frontmatter.name) continue;
+      const entry = {
+        path: filePath,
+        type: frontmatter.type,
+        name: frontmatter.name,
+        product_line: frontmatter.product_line || "general",
+        title: frontmatter.title || frontmatter.name,
+        tags: frontmatter.tags || [],
+        updated: frontmatter.updated || ""
+      };
+      entries.push(entry);
+      byType[entry.type] = (byType[entry.type] || 0) + 1;
+      byProductLine[entry.product_line] = (byProductLine[entry.product_line] || 0) + 1;
+    }
+    return {
+      version: "2.1.0",
+      generated_at: (/* @__PURE__ */ new Date()).toISOString(),
+      total: entries.length,
+      by_type: byType,
+      by_product_line: byProductLine,
+      entries
+    };
+  }
+  /**
+   * Write index to L2 repo
+   */
+  static writeIndex(git, index) {
+    const indexPath = "knowledge/_index.json";
+    git.writeFile(indexPath, JSON.stringify(index, null, 2));
+    logger.info("INDEX", `Written index with ${index.total} entries`);
+  }
+  /**
+   * Read existing index from L2 repo
+   */
+  static readIndex(git) {
+    const content = git.readFile("knowledge/_index.json");
+    if (!content) return null;
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Format index as a human-readable summary for context injection
+   */
+  static formatSummary(index) {
+    const lines = [];
+    lines.push(`\u77E5\u8BC6\u5E93\u5171 ${index.total} \u6761\u8D44\u4EA7`);
+    if (Object.keys(index.by_product_line).length > 0) {
+      const plParts = Object.entries(index.by_product_line).map(([pl, count]) => `${pl}(${count})`).join(", ");
+      lines.push(`\u4EA7\u54C1\u7EBF: ${plParts}`);
+    }
+    if (Object.keys(index.by_type).length > 0) {
+      const typeParts = Object.entries(index.by_type).map(([type, count]) => `${type}(${count})`).join(", ");
+      lines.push(`\u7C7B\u578B: ${typeParts}`);
+    }
+    return lines.join("\u3002");
+  }
+};
+
+// src/services/sync/sync-engine.ts
+var SyncEngine = class {
+  git;
+  store;
+  initialized = false;
+  constructor(store, repoPath) {
+    this.git = new GitOperations(repoPath);
+    this.store = store;
+  }
+  getGit() {
+    return this.git;
+  }
+  /**
+   * Initialize the L2 repository (clone or create)
+   */
+  async initialize(remoteUrl) {
+    if (this.initialized) return;
+    try {
+      if (remoteUrl) {
+        this.git.cloneOrInit(remoteUrl);
+      } else {
+        this.git.cloneOrInit();
+      }
+      if (this.git.hasRemote()) {
+        await this.pullFromL2();
+      }
+      this.initialized = true;
+      logger.info("SYNC", "Sync engine initialized");
+    } catch (error) {
+      logger.error("SYNC", "Initialization failed", {}, error);
+      throw error;
+    }
+  }
+  /**
+   * Pull changes from L2 (Git) → L1 (SQLite)
+   */
+  async pullFromL2() {
+    logger.info("SYNC", "Pulling from L2...");
+    const lastSync = this.store.getLastSuccessfulSync("pull");
+    const lastSha = lastSync?.git_commit_sha || "";
+    const pullResult = this.git.pull();
+    if (!pullResult.success) {
+      return this.store.createSyncLog({
+        direction: "pull",
+        status: "failed",
+        message: pullResult.error || "Pull failed"
+      });
+    }
+    const currentSha = pullResult.commitSha || "";
+    if (lastSha && lastSha === currentSha) {
+      return this.store.createSyncLog({
+        direction: "pull",
+        git_commit_sha: currentSha,
+        status: "skipped",
+        message: "No changes since last sync"
+      });
+    }
+    let changedFiles;
+    if (lastSha) {
+      changedFiles = this.git.getChangedFilesSinceCommit(lastSha).filter((f) => f.startsWith("knowledge/") && f.endsWith(".md"));
+    } else {
+      changedFiles = this.git.listMarkdownFiles("knowledge");
+    }
+    let imported = 0;
+    for (const filePath of changedFiles) {
+      const content = this.git.readFile(filePath);
+      if (!content) continue;
+      const assetInput = MarkdownParser.toAssetInput(filePath, content);
+      if (!assetInput) continue;
+      this.store.upsertKnowledgeAsset(assetInput);
+      imported++;
+    }
+    logger.info("SYNC", `Pulled ${imported} assets from L2`);
+    return this.store.createSyncLog({
+      direction: "pull",
+      git_commit_sha: currentSha,
+      status: "success",
+      message: `Imported ${imported} assets from ${changedFiles.length} changed files`
+    });
+  }
+  /**
+   * Push a single asset from L1 (SQLite) → L2 (Git)
+   */
+  async pushAssetToL2(asset) {
+    logger.info("SYNC", `Pushing asset "${asset.name}" to L2...`);
+    try {
+      const l2Path = asset.l2_path || MarkdownParser.getL2Path(asset);
+      const content = MarkdownParser.fromAssetInput(asset);
+      this.git.writeFile(l2Path, content);
+      const index = IndexGenerator.generate(this.git);
+      IndexGenerator.writeIndex(this.git, index);
+      const commitResult = this.git.addAndCommit(
+        `knowledge: add ${asset.type}/${asset.name}`,
+        [l2Path, "knowledge/_index.json"]
+      );
+      if (!commitResult.success) {
+        return this.store.createSyncLog({
+          direction: "push",
+          file_path: l2Path,
+          status: "failed",
+          message: commitResult.error || "Commit failed"
+        });
+      }
+      const existing = this.store.getKnowledgeAssetByName(asset.name, asset.product_line);
+      if (existing) {
+        this.store.markAssetPromoted(existing.id, l2Path);
+      }
+      return this.store.createSyncLog({
+        direction: "push",
+        file_path: l2Path,
+        git_commit_sha: commitResult.commitSha,
+        status: "success",
+        message: `Pushed ${asset.name} to ${l2Path}`
+      });
+    } catch (error) {
+      logger.error("SYNC", `Push failed for ${asset.name}`, {}, error);
+      return this.store.createSyncLog({
+        direction: "push",
+        status: "failed",
+        message: error.message
+      });
+    }
+  }
+  /**
+   * Push all unpromoted assets to L2
+   */
+  async pushAllUnpromoted() {
+    const unpromoted = this.store.getUnpromotedAssets();
+    if (unpromoted.length === 0) {
+      return this.store.createSyncLog({
+        direction: "push",
+        status: "skipped",
+        message: "No unpromoted assets to push"
+      });
+    }
+    logger.info("SYNC", `Pushing ${unpromoted.length} unpromoted assets...`);
+    let pushed = 0;
+    const files = [];
+    for (const asset of unpromoted) {
+      const l2Path = asset.l2_path || MarkdownParser.getL2Path({
+        type: asset.type,
+        name: asset.name,
+        product_line: asset.product_line,
+        title: asset.title,
+        content: asset.content,
+        tags: asset.tags ? JSON.parse(asset.tags) : [],
+        source_project: asset.source_project || void 0
+      });
+      const content = MarkdownParser.fromAssetInput({
+        type: asset.type,
+        name: asset.name,
+        product_line: asset.product_line,
+        title: asset.title,
+        content: asset.content,
+        tags: asset.tags ? JSON.parse(asset.tags) : [],
+        source_project: asset.source_project || void 0
+      });
+      this.git.writeFile(l2Path, content);
+      this.store.markAssetPromoted(asset.id, l2Path);
+      files.push(l2Path);
+      pushed++;
+    }
+    const index = IndexGenerator.generate(this.git);
+    IndexGenerator.writeIndex(this.git, index);
+    files.push("knowledge/_index.json");
+    const commitResult = this.git.addAndCommit(
+      `knowledge: batch push ${pushed} assets`,
+      files
+    );
+    return this.store.createSyncLog({
+      direction: "push",
+      git_commit_sha: commitResult.commitSha,
+      status: commitResult.success ? "success" : "failed",
+      message: commitResult.success ? `Pushed ${pushed} assets to L2` : commitResult.error || "Batch push failed"
+    });
+  }
+  /**
+   * Full sync: pull then push
+   */
+  async sync(direction = "both") {
+    const result = {};
+    if (direction === "pull" || direction === "both") {
+      result.pull = await this.pullFromL2();
+    }
+    if (direction === "push" || direction === "both") {
+      result.push = await this.pushAllUnpromoted();
+    }
+    if (direction !== "pull" && this.git.hasRemote()) {
+      const pushResult = this.git.push();
+      if (!pushResult.success) {
+        logger.warn("SYNC", `Remote push failed: ${pushResult.error}`);
+      }
+    }
+    return result;
+  }
+  /**
+   * Git commit and push (manual trigger)
+   */
+  async commitAndPush(message) {
+    const commitResult = this.git.addAndCommit(message || "knowledge: manual sync");
+    if (!commitResult.success) {
+      return commitResult;
+    }
+    if (this.git.hasRemote()) {
+      const pushResult = this.git.push();
+      if (!pushResult.success) {
+        return { success: false, commitSha: commitResult.commitSha, error: pushResult.error };
+      }
+    }
+    return commitResult;
+  }
+  /**
+   * Get knowledge summary for context injection
+   */
+  getKnowledgeSummary() {
+    const index = IndexGenerator.readIndex(this.git);
+    if (!index || index.total === 0) {
+      return "\u77E5\u8BC6\u5E93\u4E3A\u7A7A";
+    }
+    return IndexGenerator.formatSummary(index);
+  }
+};
+
+// src/services/security/sensitive-filter.ts
+var BUILTIN_PATTERNS = [
+  { name: "api_key", regex: /(?:api[_-]?key|apikey)\s*[:=]\s*["']?([a-zA-Z0-9_\-]{20,})["']?/gi },
+  { name: "password", regex: /(?:password|passwd|pwd)\s*[:=]\s*["']?([^\s"']{8,})["']?/gi },
+  { name: "secret", regex: /(?:secret|client_secret)\s*[:=]\s*["']?([a-zA-Z0-9_\-]{16,})["']?/gi },
+  { name: "token", regex: /(?:token|access_token|refresh_token)\s*[:=]\s*["']?([a-zA-Z0-9_\-\.]{20,})["']?/gi },
+  { name: "bearer", regex: /Bearer\s+([a-zA-Z0-9_\-\.]{20,})/g },
+  { name: "private_key", regex: /-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA )?PRIVATE KEY-----/g },
+  { name: "aws_key", regex: /(?:AKIA|ASIA)[A-Z0-9]{16}/g },
+  { name: "aws_secret", regex: /(?:aws_secret_access_key|AWS_SECRET_ACCESS_KEY)\s*[:=]\s*["']?([a-zA-Z0-9/+=]{40})["']?/gi },
+  { name: "hex_secret", regex: /(?:secret|private|signing)\s*[:=]\s*["']?([0-9a-fA-F]{32,})["']?/gi },
+  { name: "connection_string", regex: /(?:mongodb|postgres|mysql|redis):\/\/[^\s"']+/gi },
+  { name: "jwt", regex: /eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]+/g },
+  { name: "github_token", regex: /(?:ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{36}/g },
+  { name: "slack_token", regex: /xox[bpars]-[a-zA-Z0-9-]+/g }
+];
+var SensitiveFilter = class {
+  customPatterns = [];
+  constructor(customPatterns) {
+    if (customPatterns) {
+      for (const pattern of customPatterns) {
+        try {
+          this.customPatterns.push({
+            name: `custom_${this.customPatterns.length}`,
+            regex: new RegExp(pattern, "g")
+          });
+        } catch (error) {
+          logger.warn("SECURITY", `Invalid custom pattern: ${pattern}`);
+        }
+      }
+    }
+  }
+  /**
+   * Detect sensitive information in content
+   */
+  detect(content) {
+    const findings = [];
+    const allPatterns = [...BUILTIN_PATTERNS, ...this.customPatterns];
+    for (const { name, regex } of allPatterns) {
+      regex.lastIndex = 0;
+      let match;
+      while ((match = regex.exec(content)) !== null) {
+        findings.push({
+          pattern: name,
+          match: match[0].length > 20 ? match[0].slice(0, 10) + "..." + match[0].slice(-5) : match[0],
+          position: match.index
+        });
+      }
+    }
+    return findings;
+  }
+  /**
+   * Sanitize content by replacing sensitive matches with [REDACTED]
+   */
+  sanitize(content) {
+    let result = content;
+    const allPatterns = [...BUILTIN_PATTERNS, ...this.customPatterns];
+    for (const { regex } of allPatterns) {
+      regex.lastIndex = 0;
+      result = result.replace(regex, "[REDACTED]");
+    }
+    return result;
+  }
+  /**
+   * Check if content is safe (no sensitive info detected)
+   */
+  isSafe(content) {
+    const findings = this.detect(content);
+    return {
+      safe: findings.length === 0,
+      findings
+    };
+  }
+};
+
 // src/services/worker-service.ts
 var WorkerService = class {
   app;
@@ -31368,6 +32481,8 @@ var WorkerService = class {
   search = null;
   routing;
   compressor;
+  syncEngine;
+  sensitiveFilter;
   startTime;
   isShuttingDown = false;
   constructor() {
@@ -31375,6 +32490,8 @@ var WorkerService = class {
     this.store = getStore();
     this.routing = getRoutingService();
     this.compressor = getCompressor();
+    this.syncEngine = new SyncEngine(this.store);
+    this.sensitiveFilter = new SensitiveFilter();
     this.startTime = Date.now();
     this.setupMiddleware();
     this.setupRoutes();
@@ -31395,10 +32512,10 @@ var WorkerService = class {
     });
   }
   setupRoutes() {
-    const uiDir = (0, import_path4.join)(getPluginRoot(), "ui");
+    const uiDir = (0, import_path5.join)(getPluginRoot(), "ui");
     this.app.use("/ui", import_express.default.static(uiDir));
     this.app.get("/", (req, res) => {
-      res.sendFile((0, import_path4.join)(uiDir, "dashboard.html"));
+      res.sendFile((0, import_path5.join)(uiDir, "dashboard.html"));
     });
     this.app.get("/api/health", this.handleHealth.bind(this));
     this.app.get("/api/readiness", this.handleReadiness.bind(this));
@@ -31416,6 +32533,16 @@ var WorkerService = class {
     this.app.post("/api/knowledge/sink", this.handleKnowledgeSink.bind(this));
     this.app.get("/api/knowledge/pending", this.handleKnowledgePending.bind(this));
     this.app.get("/api/stats", this.handleStats.bind(this));
+    this.app.get("/api/knowledge-assets/search", this.handleSearchKnowledgeAssets.bind(this));
+    this.app.get("/api/knowledge-assets/get", this.handleGetAsset.bind(this));
+    this.app.get("/api/knowledge-assets/list", this.handleListAssets.bind(this));
+    this.app.post("/api/knowledge/sink-asset", this.handleSinkAsset.bind(this));
+    this.app.post("/api/sync/trigger", this.handleSyncTrigger.bind(this));
+    this.app.post("/api/sync/commit-push", this.handleCommitPush.bind(this));
+    this.app.get("/api/config/read", this.handleConfigRead.bind(this));
+    this.app.post("/api/config/write", this.handleConfigWrite.bind(this));
+    this.app.post("/api/security/filter", this.handleSecurityFilter.bind(this));
+    this.app.get("/api/stats/knowledge", this.handleKnowledgeStats.bind(this));
   }
   setupSignalHandlers() {
     const shutdown = async (signal) => {
@@ -31437,6 +32564,10 @@ var WorkerService = class {
     ensureDataDir();
     await this.store.initialize();
     this.search = new SearchService();
+    const l2RepoUrl = this.store.getConfigValue("L2_REPO_URL") || "";
+    this.syncEngine.initialize(l2RepoUrl || void 0).catch((err) => {
+      logger.warn("WORKER", `Sync engine initialization deferred: ${err.message}`);
+    });
     return new Promise((resolve, reject) => {
       this.server = (0, import_http.createServer)(this.app);
       this.server.listen(port, host, () => {
@@ -31471,7 +32602,7 @@ var WorkerService = class {
   handleHealth(req, res) {
     const status = {
       status: "healthy",
-      version: process.env.npm_package_version || "2.0.0",
+      version: process.env.npm_package_version || "2.1.0",
       uptime: Date.now() - this.startTime,
       database: true,
       ai: true
@@ -31633,6 +32764,22 @@ var WorkerService = class {
         }
         context += "\n";
       }
+      try {
+        const autoSync = this.store.getConfigValue("AUTO_SYNC_ON_SESSION_START");
+        if (autoSync === "true") {
+          this.syncEngine.pullFromL2().catch((err) => {
+            logger.warn("CONTEXT", `Auto-sync pull failed: ${err.message}`);
+          });
+        }
+        const knowledgeSummary = this.syncEngine.getKnowledgeSummary();
+        if (knowledgeSummary && knowledgeSummary !== "\u77E5\u8BC6\u5E93\u4E3A\u7A7A") {
+          context += `## \u77E5\u8BC6\u5E93
+${knowledgeSummary}
+
+`;
+        }
+      } catch {
+      }
       context += `## \u5DF2\u5B89\u88C5\u5DE5\u5177
 `;
       if (installedTools.length > 0) {
@@ -31781,6 +32928,182 @@ var WorkerService = class {
           uptime: Date.now() - this.startTime
         }
       });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  // ============================================================================
+  // Knowledge Assets (L1 ↔ L2)
+  // ============================================================================
+  handleSearchKnowledgeAssets(req, res) {
+    try {
+      if (!this.search) {
+        res.status(503).json({ success: false, error: "Search not ready" });
+        return;
+      }
+      const query = req.query.query || req.query.q;
+      if (!query) {
+        res.status(400).json({ success: false, error: "Query required" });
+        return;
+      }
+      const product_line = req.query.product_line;
+      const type = req.query.type;
+      const limit = parseInt(req.query.limit || "20", 10);
+      const result = this.search.searchKnowledgeAssets(query, { product_line, type, limit });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  handleGetAsset(req, res) {
+    try {
+      const id = req.query.id;
+      const name = req.query.name;
+      const productLine = req.query.product_line;
+      let asset = null;
+      if (id) {
+        asset = this.store.getKnowledgeAsset(parseInt(id, 10));
+      } else if (name && productLine) {
+        asset = this.store.getKnowledgeAssetByName(name, productLine);
+      } else if (name) {
+        asset = this.store.getKnowledgeAssetByName(name, "general");
+      }
+      if (!asset) {
+        res.status(404).json({ success: false, error: "Asset not found" });
+        return;
+      }
+      res.json({ success: true, data: asset });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  handleListAssets(req, res) {
+    try {
+      if (!this.search) {
+        res.status(503).json({ success: false, error: "Search not ready" });
+        return;
+      }
+      const type = req.query.type;
+      const product_line = req.query.product_line;
+      const promoted = req.query.promoted === "true" ? true : req.query.promoted === "false" ? false : void 0;
+      const limit = parseInt(req.query.limit || "50", 10);
+      const offset = parseInt(req.query.offset || "0", 10);
+      const result = this.search.listAssets({ type, product_line, promoted, limit, offset });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  async handleSinkAsset(req, res) {
+    try {
+      const { type, name, product_line, title, content, tags, source_project } = req.body;
+      if (!type || !name || !product_line || !title || !content) {
+        res.status(400).json({ success: false, error: "Missing required fields: type, name, product_line, title, content" });
+        return;
+      }
+      const safeContent = this.sensitiveFilter.sanitize(content);
+      const asset = this.store.upsertKnowledgeAsset({
+        type,
+        name,
+        product_line,
+        title,
+        content: safeContent,
+        tags,
+        source_project
+      });
+      res.json({ success: true, data: asset });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  // ============================================================================
+  // Sync
+  // ============================================================================
+  async handleSyncTrigger(req, res) {
+    try {
+      const direction = req.body.direction || "both";
+      const result = await this.syncEngine.sync(direction);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  async handleCommitPush(req, res) {
+    try {
+      const message = req.body.message;
+      const result = await this.syncEngine.commitAndPush(message);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  // ============================================================================
+  // Config
+  // ============================================================================
+  handleConfigRead(req, res) {
+    try {
+      const key = req.query.key;
+      if (!key) {
+        const allConfig = this.store.getAllConfig();
+        res.json({ success: true, data: allConfig });
+        return;
+      }
+      const value = this.store.getConfigValue(key);
+      res.json({ success: true, data: { key, value } });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  handleConfigWrite(req, res) {
+    try {
+      const { key, value } = req.body;
+      if (!key || value === void 0) {
+        res.status(400).json({ success: false, error: "key and value required" });
+        return;
+      }
+      this.store.setConfigValue(key, String(value));
+      res.json({ success: true, data: { key, value } });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  // ============================================================================
+  // Security
+  // ============================================================================
+  handleSecurityFilter(req, res) {
+    try {
+      const { content, custom_patterns } = req.body;
+      if (!content) {
+        res.status(400).json({ success: false, error: "content required" });
+        return;
+      }
+      const filter = custom_patterns ? new SensitiveFilter(custom_patterns) : this.sensitiveFilter;
+      const findings = filter.detect(content);
+      const sanitized = filter.sanitize(content);
+      res.json({
+        success: true,
+        data: {
+          safe: findings.length === 0,
+          findings,
+          sanitized
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+  // ============================================================================
+  // Knowledge Stats
+  // ============================================================================
+  handleKnowledgeStats(req, res) {
+    try {
+      if (!this.search) {
+        res.status(503).json({ success: false, error: "Search not ready" });
+        return;
+      }
+      const productLine = req.query.product_line;
+      const stats = this.search.getAssetStats(productLine);
+      res.json({ success: true, data: stats });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }

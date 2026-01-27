@@ -275,3 +275,136 @@ export interface SummaryResult {
   next_steps: string;
   sinkable_knowledge: KnowledgeInput[];
 }
+
+// ============================================================================
+// Knowledge Asset Types (L1 ↔ L2 Sync)
+// ============================================================================
+
+export type KnowledgeAssetType =
+  | 'pitfall'       // 踩坑记录
+  | 'adr'           // Architecture Decision Record
+  | 'glossary'      // 术语定义
+  | 'best-practice' // 最佳实践
+  | 'pattern'       // 设计模式
+  | 'discovery'     // 发现
+  | 'skill'         // 技能
+  | 'reference';    // 参考资料
+
+export interface KnowledgeAssetRow {
+  id: number;
+  type: KnowledgeAssetType;
+  name: string;           // unique slug, e.g. "matching-engine-latency"
+  product_line: string;   // e.g. "exchange/core", "custody/mpc"
+  tags: string | null;    // JSON array
+  title: string;
+  content: string;
+  source_project: string | null;
+  l2_path: string | null; // path in L2 repo
+  promoted: number;       // 0 = L1 only, 1 = pushed to L2
+  created_at: string;
+  created_at_epoch: number;
+  updated_at: string;
+  updated_at_epoch: number;
+}
+
+export interface KnowledgeAssetInput {
+  type: KnowledgeAssetType;
+  name: string;
+  product_line: string;
+  tags?: string[];
+  title: string;
+  content: string;
+  source_project?: string;
+  l2_path?: string;
+}
+
+export type SyncDirection = 'pull' | 'push' | 'both';
+
+export interface SyncLogRow {
+  id: number;
+  direction: SyncDirection;
+  file_path: string | null;
+  git_commit_sha: string | null;
+  status: 'success' | 'failed' | 'skipped';
+  message: string | null;
+  created_at: string;
+  created_at_epoch: number;
+}
+
+export interface ConfigRow {
+  key: string;
+  value: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// Search Strategy
+// ============================================================================
+
+export type SearchStrategy = 'fts' | 'hybrid' | 'exact';
+
+// ============================================================================
+// MCP Input Types
+// ============================================================================
+
+export interface SearchKnowledgeInput {
+  query: string;
+  product_line?: string;
+  type?: KnowledgeAssetType;
+  limit?: number;
+  strategy?: SearchStrategy;
+}
+
+export interface SinkKnowledgeInput {
+  type: KnowledgeAssetType;
+  name: string;
+  product_line: string;
+  title: string;
+  content: string;
+  tags?: string[];
+  source_project?: string;
+}
+
+export interface SyncTriggerInput {
+  direction: SyncDirection;
+  force?: boolean;
+}
+
+export interface FilterSensitiveInput {
+  content: string;
+  custom_patterns?: string[];
+}
+
+// ============================================================================
+// L2 Index Types
+// ============================================================================
+
+export interface MarkdownFrontmatter {
+  type: KnowledgeAssetType;
+  name: string;
+  product_line: string;
+  title: string;
+  tags: string[];
+  created: string;
+  updated: string;
+  source_project?: string;
+}
+
+export interface L2IndexEntry {
+  path: string;
+  type: KnowledgeAssetType;
+  name: string;
+  product_line: string;
+  title: string;
+  tags: string[];
+  updated: string;
+}
+
+export interface L2Index {
+  version: string;
+  generated_at: string;
+  total: number;
+  by_type: Record<string, number>;
+  by_product_line: Record<string, number>;
+  entries: L2IndexEntry[];
+}

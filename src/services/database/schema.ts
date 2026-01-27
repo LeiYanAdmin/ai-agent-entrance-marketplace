@@ -2,7 +2,7 @@
  * Database schema and migrations for AI Agent Entrance
  */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const MIGRATIONS: Record<number, string[]> = {
   1: [
@@ -156,7 +156,109 @@ export const MIGRATIONS: Record<number, string[]> = {
       version INTEGER PRIMARY KEY
     )`,
 
-    `INSERT OR REPLACE INTO schema_version (version) VALUES (${SCHEMA_VERSION})`,
+    `INSERT OR REPLACE INTO schema_version (version) VALUES (1)`,
+  ],
+
+  2: [
+    // Knowledge Assets table (L1 cache)
+    `CREATE TABLE IF NOT EXISTS knowledge_assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK(type IN ('pitfall', 'adr', 'glossary', 'best-practice', 'pattern', 'discovery', 'skill', 'reference')),
+      name TEXT NOT NULL,
+      product_line TEXT NOT NULL DEFAULT 'general',
+      tags TEXT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source_project TEXT,
+      l2_path TEXT,
+      promoted INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      created_at_epoch INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_at_epoch INTEGER NOT NULL,
+      UNIQUE(name, product_line)
+    )`,
+
+    // Indexes for knowledge_assets
+    `CREATE INDEX IF NOT EXISTS idx_ka_type ON knowledge_assets(type)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_product_line ON knowledge_assets(product_line)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_promoted ON knowledge_assets(promoted)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_name ON knowledge_assets(name)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_l2_path ON knowledge_assets(l2_path)`,
+    `CREATE INDEX IF NOT EXISTS idx_ka_updated ON knowledge_assets(updated_at_epoch DESC)`,
+
+    // FTS5 for knowledge_assets
+    `CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_assets_fts USING fts5(
+      name,
+      title,
+      content,
+      tags,
+      product_line,
+      content='knowledge_assets',
+      content_rowid='id'
+    )`,
+
+    // Knowledge Assets FTS triggers
+    `CREATE TRIGGER IF NOT EXISTS ka_fts_ai AFTER INSERT ON knowledge_assets BEGIN
+      INSERT INTO knowledge_assets_fts(rowid, name, title, content, tags, product_line)
+      VALUES (new.id, new.name, new.title, new.content, new.tags, new.product_line);
+    END`,
+
+    `CREATE TRIGGER IF NOT EXISTS ka_fts_ad AFTER DELETE ON knowledge_assets BEGIN
+      INSERT INTO knowledge_assets_fts(knowledge_assets_fts, rowid, name, title, content, tags, product_line)
+      VALUES ('delete', old.id, old.name, old.title, old.content, old.tags, old.product_line);
+    END`,
+
+    `CREATE TRIGGER IF NOT EXISTS ka_fts_au AFTER UPDATE ON knowledge_assets BEGIN
+      INSERT INTO knowledge_assets_fts(knowledge_assets_fts, rowid, name, title, content, tags, product_line)
+      VALUES ('delete', old.id, old.name, old.title, old.content, old.tags, old.product_line);
+      INSERT INTO knowledge_assets_fts(rowid, name, title, content, tags, product_line)
+      VALUES (new.id, new.name, new.title, new.content, new.tags, new.product_line);
+    END`,
+
+    // Sync log table
+    `CREATE TABLE IF NOT EXISTS sync_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      direction TEXT NOT NULL CHECK(direction IN ('pull', 'push', 'both')),
+      file_path TEXT,
+      git_commit_sha TEXT,
+      status TEXT NOT NULL CHECK(status IN ('success', 'failed', 'skipped')),
+      message TEXT,
+      created_at TEXT NOT NULL,
+      created_at_epoch INTEGER NOT NULL
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS idx_sync_log_direction ON sync_log(direction)`,
+    `CREATE INDEX IF NOT EXISTS idx_sync_log_status ON sync_log(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_sync_log_created ON sync_log(created_at_epoch DESC)`,
+
+    // Config key-value table
+    `CREATE TABLE IF NOT EXISTS config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+
+    // Migrate existing knowledge rows → knowledge_assets
+    `INSERT OR IGNORE INTO knowledge_assets (type, name, product_line, tags, title, content, source_project, l2_path, promoted, created_at, created_at_epoch, updated_at, updated_at_epoch)
+     SELECT
+       type,
+       'legacy-' || id,
+       COALESCE(project, 'general'),
+       tags,
+       title,
+       content,
+       project,
+       file_path,
+       CASE WHEN synced_at IS NOT NULL THEN 1 ELSE 0 END,
+       created_at,
+       created_at_epoch,
+       COALESCE(synced_at, created_at),
+       created_at_epoch
+     FROM knowledge`,
+
+    // Update schema version
+    `UPDATE schema_version SET version = 2`,
   ],
 };
 

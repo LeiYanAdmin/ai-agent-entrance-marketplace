@@ -30,7 +30,11 @@ var DEFAULTS = {
   GLOBAL_KNOWLEDGE_REPO: (0, import_path.join)((0, import_os.homedir)(), "compound-knowledge"),
   AUTO_SINK_ON_STOP: "true",
   // Skip tools (don't capture observations for these)
-  SKIP_TOOLS: "ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion,TaskList,TaskGet"
+  SKIP_TOOLS: "ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion,TaskList,TaskGet",
+  // L2 Sync settings
+  L2_REPO_URL: "",
+  AUTO_SYNC_ON_SESSION_START: "false",
+  SYNC_CONFLICT_STRATEGY: "remote-wins"
 };
 function getDataDir() {
   return process.env.AI_ENTRANCE_DATA_DIR || DEFAULTS.DATA_DIR;
