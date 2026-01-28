@@ -31756,6 +31756,9 @@ var GitOperations = class {
   cloneOrInit(remoteUrl) {
     if ((0, import_fs5.existsSync)((0, import_path4.join)(this.repoPath, ".git"))) {
       logger.info("GIT", `Repository already exists at ${this.repoPath}`);
+      if (remoteUrl) {
+        this.setRemote(remoteUrl);
+      }
       return;
     }
     (0, import_fs5.mkdirSync)(this.repoPath, { recursive: true });
@@ -31778,7 +31781,18 @@ var GitOperations = class {
       if (!this.hasRemote()) {
         return { success: true, commitSha: this.getLastCommitSha() };
       }
-      this.execInRepo("git pull --rebase");
+      if (this.hasUpstream()) {
+        this.execInRepo("git pull --rebase");
+      } else {
+        const branch = this.getCurrentBranch();
+        try {
+          this.execInRepo(`git fetch origin`);
+          this.execInRepo(`git merge origin/${branch} --allow-unrelated-histories --no-edit`);
+          this.execInRepo(`git branch --set-upstream-to=origin/${branch} ${branch}`);
+        } catch {
+          logger.info("GIT", "Remote branch not found, skipping pull");
+        }
+      }
       return { success: true, commitSha: this.getLastCommitSha() };
     } catch (error) {
       const msg = error.message;
@@ -31829,12 +31843,39 @@ var GitOperations = class {
       if (!this.hasRemote()) {
         return { success: false, error: "No remote configured" };
       }
-      this.execInRepo("git push");
+      const hasUpstream = this.hasUpstream();
+      if (hasUpstream) {
+        this.execInRepo("git push");
+      } else {
+        const branch = this.getCurrentBranch();
+        this.execInRepo(`git push -u origin ${branch}`);
+      }
       return { success: true };
     } catch (error) {
       const msg = error.message;
       logger.error("GIT", "Push failed", {}, error);
       return { success: false, error: msg };
+    }
+  }
+  /**
+   * Check if current branch has an upstream tracking branch
+   */
+  hasUpstream() {
+    try {
+      this.execInRepo("git rev-parse --abbrev-ref @{u}");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * Get current branch name
+   */
+  getCurrentBranch() {
+    try {
+      return this.execInRepo("git rev-parse --abbrev-ref HEAD").trim();
+    } catch {
+      return "main";
     }
   }
   /**

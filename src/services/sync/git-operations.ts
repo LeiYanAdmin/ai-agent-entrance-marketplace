@@ -25,6 +25,10 @@ export class GitOperations {
   cloneOrInit(remoteUrl?: string): void {
     if (existsSync(join(this.repoPath, '.git'))) {
       logger.info('GIT', `Repository already exists at ${this.repoPath}`);
+      // Ensure remote is set if URL provided but repo was created locally
+      if (remoteUrl) {
+        this.setRemote(remoteUrl);
+      }
       return;
     }
 
@@ -50,7 +54,20 @@ export class GitOperations {
       if (!this.hasRemote()) {
         return { success: true, commitSha: this.getLastCommitSha() };
       }
-      this.execInRepo('git pull --rebase');
+      if (this.hasUpstream()) {
+        this.execInRepo('git pull --rebase');
+      } else {
+        // First pull: fetch and merge with allow-unrelated-histories
+        const branch = this.getCurrentBranch();
+        try {
+          this.execInRepo(`git fetch origin`);
+          this.execInRepo(`git merge origin/${branch} --allow-unrelated-histories --no-edit`);
+          this.execInRepo(`git branch --set-upstream-to=origin/${branch} ${branch}`);
+        } catch {
+          // Remote branch may not exist yet — that's OK
+          logger.info('GIT', 'Remote branch not found, skipping pull');
+        }
+      }
       return { success: true, commitSha: this.getLastCommitSha() };
     } catch (error) {
       const msg = (error as Error).message;
@@ -107,12 +124,42 @@ export class GitOperations {
       if (!this.hasRemote()) {
         return { success: false, error: 'No remote configured' };
       }
-      this.execInRepo('git push');
+      // Use -u origin on first push, plain push otherwise
+      const hasUpstream = this.hasUpstream();
+      if (hasUpstream) {
+        this.execInRepo('git push');
+      } else {
+        const branch = this.getCurrentBranch();
+        this.execInRepo(`git push -u origin ${branch}`);
+      }
       return { success: true };
     } catch (error) {
       const msg = (error as Error).message;
       logger.error('GIT', 'Push failed', {}, error as Error);
       return { success: false, error: msg };
+    }
+  }
+
+  /**
+   * Check if current branch has an upstream tracking branch
+   */
+  private hasUpstream(): boolean {
+    try {
+      this.execInRepo('git rev-parse --abbrev-ref @{u}');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get current branch name
+   */
+  private getCurrentBranch(): string {
+    try {
+      return this.execInRepo('git rev-parse --abbrev-ref HEAD').trim();
+    } catch {
+      return 'main';
     }
   }
 
