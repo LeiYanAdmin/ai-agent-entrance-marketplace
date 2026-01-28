@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "entrance-mcp": {
+      "type": "stdio",
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/entrance-mcp-server.cjs"
+    }
+  }
+}

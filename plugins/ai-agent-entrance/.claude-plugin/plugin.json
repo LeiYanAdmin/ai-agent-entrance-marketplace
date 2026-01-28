@@ -18,9 +18,5 @@
     "semantic-compression",
     "mcp-server",
     "knowledge-sync"
-  ],
-  "mcp": {
-    "command": "node",
-    "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/entrance-mcp-server.cjs"]
-  }
+  ]
 }
