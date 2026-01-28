@@ -737,6 +737,12 @@ export class WorkerService {
     try {
       const direction = (req.body.direction || 'both') as SyncDirection;
 
+      // Refresh remote URL from config before sync
+      const l2RepoUrl = this.store.getConfigValue('L2_REPO_URL');
+      if (l2RepoUrl) {
+        this.syncEngine.updateRemote(l2RepoUrl);
+      }
+
       const result = await this.syncEngine.sync(direction);
       res.json({ success: true, data: result });
     } catch (error) {
@@ -747,6 +753,13 @@ export class WorkerService {
   private async handleCommitPush(req: Request, res: Response): Promise<void> {
     try {
       const message = req.body.message as string | undefined;
+
+      // Refresh remote URL from config before push
+      const l2RepoUrl = this.store.getConfigValue('L2_REPO_URL');
+      if (l2RepoUrl) {
+        this.syncEngine.updateRemote(l2RepoUrl);
+      }
+
       const result = await this.syncEngine.commitAndPush(message);
       res.json({ success: true, data: result });
     } catch (error) {

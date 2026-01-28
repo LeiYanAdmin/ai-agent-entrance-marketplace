@@ -32229,6 +32229,14 @@ var SyncEngine = class {
     return this.git;
   }
   /**
+   * Update the git remote URL (called when L2_REPO_URL config changes)
+   */
+  updateRemote(url) {
+    if (url) {
+      this.git.setRemote(url);
+    }
+  }
+  /**
    * Initialize the L2 repository (clone or create)
    */
   async initialize(remoteUrl) {
@@ -33063,6 +33071,10 @@ ${knowledgeSummary}
   async handleSyncTrigger(req, res) {
     try {
       const direction = req.body.direction || "both";
+      const l2RepoUrl = this.store.getConfigValue("L2_REPO_URL");
+      if (l2RepoUrl) {
+        this.syncEngine.updateRemote(l2RepoUrl);
+      }
       const result = await this.syncEngine.sync(direction);
       res.json({ success: true, data: result });
     } catch (error) {
@@ -33072,6 +33084,10 @@ ${knowledgeSummary}
   async handleCommitPush(req, res) {
     try {
       const message = req.body.message;
+      const l2RepoUrl = this.store.getConfigValue("L2_REPO_URL");
+      if (l2RepoUrl) {
+        this.syncEngine.updateRemote(l2RepoUrl);
+      }
       const result = await this.syncEngine.commitAndPush(message);
       res.json({ success: true, data: result });
     } catch (error) {

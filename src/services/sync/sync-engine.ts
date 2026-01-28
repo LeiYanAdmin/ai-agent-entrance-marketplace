@@ -29,6 +29,15 @@ export class SyncEngine {
   }
 
   /**
+   * Update the git remote URL (called when L2_REPO_URL config changes)
+   */
+  updateRemote(url: string): void {
+    if (url) {
+      this.git.setRemote(url);
+    }
+  }
+
+  /**
    * Initialize the L2 repository (clone or create)
    */
   async initialize(remoteUrl?: string): Promise<void> {
