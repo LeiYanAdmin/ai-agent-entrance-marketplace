@@ -5,7 +5,7 @@
  */
 
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, existsSync } from 'fs';
+import { cpSync, mkdirSync, existsSync, chmodSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -71,6 +71,12 @@ async function main() {
     },
   });
   console.log('✓ Built entrance-mcp-server.cjs');
+
+  // Make scripts executable (required for MCP server stdio launch)
+  for (const script of ['worker-service.cjs', 'worker-cli.cjs', 'entrance-mcp-server.cjs']) {
+    chmodSync(join(SCRIPTS, script), 0o755);
+  }
+  console.log('✓ Set executable permissions');
 
   // Copy config files if they exist in src
   const configSrc = join(ROOT, 'plugins', 'ai-agent-entrance', 'config');
