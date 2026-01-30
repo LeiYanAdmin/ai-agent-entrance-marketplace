@@ -11,8 +11,8 @@
   "plugins": [
     {
       "name": "ai-agent-entrance",
-      "description": "智能路由与知识沉淀 - 自动识别任务类型、推荐最佳开发流程、沉淀可复用知识、L1↔L2知识同步",
-      "version": "2.1.0",
+      "description": "智能路由与知识沉淀 - 三层检索架构（L0 被动索引 + L1 交叉验证 + L2 详情获取），提升检索成功率到 90%+",
+      "version": "2.2.0",
       "author": {
         "name": "Larry Yan",
         "url": "https://github.com/LeiYanAdmin"
