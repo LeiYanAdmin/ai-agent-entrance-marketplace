@@ -519,6 +519,19 @@ export class DatabaseStore {
     return stmt.all(...params) as KnowledgeAssetRow[];
   }
 
+  /**
+   * Get all knowledge assets (no limit)
+   * Used for generating AGENTS-INDEX.md
+   */
+  getAllKnowledgeAssets(): KnowledgeAssetRow[] {
+    const db = this.getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM knowledge_assets
+      ORDER BY promoted DESC, updated_at_epoch DESC
+    `);
+    return stmt.all() as KnowledgeAssetRow[];
+  }
+
   markAssetPromoted(id: number, l2Path: string): void {
     const db = this.getDb();
     const now = new Date();

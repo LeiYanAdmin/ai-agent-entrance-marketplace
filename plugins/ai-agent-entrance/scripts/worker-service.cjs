@@ -18376,7 +18376,7 @@ var require_view = __commonJS({
     var dirname2 = path.dirname;
     var basename = path.basename;
     var extname = path.extname;
-    var join6 = path.join;
+    var join7 = path.join;
     var resolve = path.resolve;
     module2.exports = View;
     function View(name, options) {
@@ -18424,12 +18424,12 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve2(dir, file) {
       var ext = this.ext;
-      var path2 = join6(dir, file);
+      var path2 = join7(dir, file);
       var stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
       }
-      path2 = join6(dir, basename(file, ext), "index" + ext);
+      path2 = join7(dir, basename(file, ext), "index" + ext);
       stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
@@ -19062,7 +19062,7 @@ var require_send = __commonJS({
     var Stream = require("stream");
     var util = require("util");
     var extname = path.extname;
-    var join6 = path.join;
+    var join7 = path.join;
     var normalize = path.normalize;
     var resolve = path.resolve;
     var sep = path.sep;
@@ -19281,7 +19281,7 @@ var require_send = __commonJS({
           return res;
         }
         parts = path2.split(sep);
-        path2 = normalize(join6(root, path2));
+        path2 = normalize(join7(root, path2));
       } else {
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
@@ -19416,7 +19416,7 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join6(path2, self._index[i]);
+        var p = join7(path2, self._index[i]);
         debug('stat "%s"', p);
         fs.stat(p, function(err2, stat) {
           if (err2) return next(err2);
@@ -29849,7 +29849,7 @@ __export(worker_service_exports, {
 module.exports = __toCommonJS(worker_service_exports);
 var import_express = __toESM(require_express2(), 1);
 var import_http = require("http");
-var import_path5 = require("path");
+var import_path6 = require("path");
 
 // src/shared/config.ts
 var import_fs = require("fs");
@@ -30722,6 +30722,18 @@ var DatabaseStore = class {
     `);
     params.push(limit, offset);
     return stmt.all(...params);
+  }
+  /**
+   * Get all knowledge assets (no limit)
+   * Used for generating AGENTS-INDEX.md
+   */
+  getAllKnowledgeAssets() {
+    const db = this.getDb();
+    const stmt = db.prepare(`
+      SELECT * FROM knowledge_assets
+      ORDER BY promoted DESC, updated_at_epoch DESC
+    `);
+    return stmt.all();
   }
   markAssetPromoted(id, l2Path) {
     const db = this.getDb();
@@ -32216,14 +32228,150 @@ var IndexGenerator = class {
   }
 };
 
+// src/services/index/agents-md-generator.ts
+var import_fs6 = require("fs");
+var import_path5 = require("path");
+var AgentsMdGenerator = class {
+  constructor(store) {
+    this.store = store;
+  }
+  /**
+   * Generate compressed index in pipe-delimited format
+   *
+   * Format: name|type|product_line|title|tags|promoted
+   * Target: ~100 bytes per asset, ~10KB for 100 assets
+   */
+  generateIndex() {
+    const assets = this.store.getAllKnowledgeAssets();
+    const l1Count = assets.filter((a) => !a.promoted).length;
+    const l2Count = assets.filter((a) => a.promoted).length;
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+    const header = [
+      "# AI Agent Entrance - Knowledge Index",
+      "",
+      `Last updated: ${timestamp}`,
+      `Total assets: ${assets.length} (L1: ${l1Count}, L2: ${l2Count})`,
+      "",
+      "## Quick Reference",
+      "",
+      "Use `get_asset(name, product_line)` MCP tool to retrieve full content.",
+      "",
+      "## Three-Layer Retrieval Strategy",
+      "",
+      "**L0 (Index Scan) - ALWAYS FIRST:**",
+      "Scan this index for matching name/title/tags.",
+      "",
+      "**Decision Point:** Evaluate L0 results",
+      "- \u2705 **1-2 exact matches** \u2192 Skip to L2 (get full content)",
+      "- \u26A0\uFE0F **3+ matches OR uncertain** \u2192 Use L1 for cross-validation",
+      "- \u274C **0 matches** \u2192 Answer from general knowledge (note the gap)",
+      "",
+      "**L1 (Full-text Search) - ON-DEMAND VALIDATION:**",
+      "When L0 returns multiple candidates, use `search_knowledge()` to:",
+      "- Search full content (not just title/tags)",
+      "- Get relevance scores + snippets",
+      "- Validate which asset best matches the query",
+      "",
+      "**L2 (Detail Retrieval) - FINAL STEP:**",
+      "Use `get_asset()` to retrieve full markdown content.",
+      "- If L1 was used: prioritize by relevance score",
+      "- If L1 was skipped: retrieve the exact match from L0",
+      "",
+      "## Index",
+      "",
+      "Format: `name|type|product_line|title|tags|promoted`",
+      "",
+      "<!-- INDEX_START -->"
+    ];
+    const indexLines = assets.map((asset) => this.formatAssetLine(asset));
+    const footer = [
+      "<!-- INDEX_END -->",
+      "",
+      "## Usage Examples",
+      "",
+      "**Example 1: Exact match (skip L1)**",
+      "```",
+      'User: "Redis Sentinel \u600E\u4E48\u914D\u7F6E\uFF1F"',
+      "L0 Scan \u2192 1 match: redis-sentinel-setup",
+      "Decision: Exact match, skip L1",
+      'L2: get_asset("redis-sentinel-setup", "exchange/infra")',
+      "```",
+      "",
+      "**Example 2: Multiple matches (use L1)**",
+      "```",
+      'User: "\u6D88\u606F\u961F\u5217\u91CD\u8BD5\u7B56\u7565\uFF1F"',
+      "L0 Scan \u2192 5 matches (kafka-*, rabbitmq-*, redis-*)",
+      "Decision: Multiple matches, need validation",
+      'L1: search_knowledge({query: "\u6D88\u606F\u961F\u5217 \u91CD\u8BD5"}) \u2192 rank by score',
+      "L2: get_asset(top_result)",
+      "```",
+      "",
+      "## Asset Types",
+      "",
+      "- **pitfall**: \u8E29\u5751\u8BB0\u5F55 - \u907F\u514D\u91CD\u590D\u95EE\u9898",
+      "- **reference**: \u53C2\u8003\u6587\u6863 - \u6280\u672F\u6307\u5357\u3001API \u89C4\u8303",
+      "- **pattern**: \u8BBE\u8BA1\u6A21\u5F0F - \u53EF\u590D\u7528\u89E3\u51B3\u65B9\u6848",
+      "- **best-practice**: \u6700\u4F73\u5B9E\u8DF5 - \u56E2\u961F\u89C4\u8303\u3001\u4EE3\u7801\u98CE\u683C",
+      "- **glossary**: \u672F\u8BED\u5B9A\u4E49 - \u7EDF\u4E00\u8BED\u8A00\u3001\u4E1A\u52A1\u6982\u5FF5",
+      "- **adr**: \u67B6\u6784\u51B3\u7B56\u8BB0\u5F55 - \u8BBE\u8BA1\u5386\u53F2\u3001\u6743\u8861\u5206\u6790",
+      "- **discovery**: \u53D1\u73B0\u7B14\u8BB0 - \u4E34\u65F6\u8BB0\u5F55\uFF0C\u53EF\u8F6C\u5316\u4E3A\u5176\u4ED6\u7C7B\u578B",
+      "- **skill**: \u5DE5\u4F5C\u6D41\u6280\u80FD - \u7EB5\u5411\u6D41\u7A0B\uFF08\u7531 Skills \u663E\u5F0F\u8C03\u7528\uFF09"
+    ];
+    return [...header, ...indexLines, ...footer].join("\n");
+  }
+  /**
+   * Format a single asset as pipe-delimited line
+   */
+  formatAssetLine(asset) {
+    const tags = asset.tags ? JSON.parse(asset.tags).join(",") : "";
+    return `${asset.name}|${asset.type}|${asset.product_line}|${asset.title}|${tags}|${asset.promoted}`;
+  }
+  /**
+   * Write index to ~/.ai-agent-entrance/AGENTS-INDEX.md
+   */
+  writeAgentsMd() {
+    try {
+      const content = this.generateIndex();
+      const agentsMdPath = (0, import_path5.join)(getDataDir(), "AGENTS-INDEX.md");
+      (0, import_fs6.writeFileSync)(agentsMdPath, content, "utf-8");
+      const sizeKB = (content.length / 1024).toFixed(2);
+      logger.info("INDEX", `Updated AGENTS-INDEX.md at ${agentsMdPath} (${sizeKB} KB)`);
+    } catch (error) {
+      logger.error("INDEX", "Failed to write AGENTS-INDEX.md", {}, error);
+      throw error;
+    }
+  }
+  /**
+   * Get index file path
+   */
+  getIndexPath() {
+    return (0, import_path5.join)(getDataDir(), "AGENTS-INDEX.md");
+  }
+  /**
+   * Get index stats
+   */
+  getIndexStats() {
+    const assets = this.store.getAllKnowledgeAssets();
+    const content = this.generateIndex();
+    return {
+      totalAssets: assets.length,
+      l1Count: assets.filter((a) => !a.promoted).length,
+      l2Count: assets.filter((a) => a.promoted).length,
+      sizeKB: parseFloat((content.length / 1024).toFixed(2))
+    };
+  }
+};
+
 // src/services/sync/sync-engine.ts
 var SyncEngine = class {
   git;
   store;
+  agentsMdGenerator;
   initialized = false;
   constructor(store, repoPath) {
     this.git = new GitOperations(repoPath);
     this.store = store;
+    this.agentsMdGenerator = new AgentsMdGenerator(store);
   }
   getGit() {
     return this.git;
@@ -32297,12 +32445,18 @@ var SyncEngine = class {
       imported++;
     }
     logger.info("SYNC", `Pulled ${imported} assets from L2`);
-    return this.store.createSyncLog({
+    const syncLog = this.store.createSyncLog({
       direction: "pull",
       git_commit_sha: currentSha,
       status: "success",
       message: `Imported ${imported} assets from ${changedFiles.length} changed files`
     });
+    try {
+      this.agentsMdGenerator.writeAgentsMd();
+    } catch (error) {
+      logger.warn("SYNC", "Failed to update AGENTS-INDEX.md after pull", {}, error);
+    }
+    return syncLog;
   }
   /**
    * Push a single asset from L1 (SQLite) → L2 (Git)
@@ -32393,12 +32547,20 @@ var SyncEngine = class {
       `knowledge: batch push ${pushed} assets`,
       files
     );
-    return this.store.createSyncLog({
+    const syncLog = this.store.createSyncLog({
       direction: "push",
       git_commit_sha: commitResult.commitSha,
       status: commitResult.success ? "success" : "failed",
       message: commitResult.success ? `Pushed ${pushed} assets to L2` : commitResult.error || "Batch push failed"
     });
+    if (commitResult.success) {
+      try {
+        this.agentsMdGenerator.writeAgentsMd();
+      } catch (error) {
+        logger.warn("SYNC", "Failed to update AGENTS-INDEX.md after push", {}, error);
+      }
+    }
+    return syncLog;
   }
   /**
    * Full sync: pull then push
@@ -32532,6 +32694,7 @@ var WorkerService = class {
   compressor;
   syncEngine;
   sensitiveFilter;
+  agentsMdGenerator;
   startTime;
   isShuttingDown = false;
   constructor() {
@@ -32541,6 +32704,7 @@ var WorkerService = class {
     this.compressor = getCompressor();
     this.syncEngine = new SyncEngine(this.store);
     this.sensitiveFilter = new SensitiveFilter();
+    this.agentsMdGenerator = new AgentsMdGenerator(this.store);
     this.startTime = Date.now();
     this.setupMiddleware();
     this.setupRoutes();
@@ -32561,10 +32725,10 @@ var WorkerService = class {
     });
   }
   setupRoutes() {
-    const uiDir = (0, import_path5.join)(getPluginRoot(), "ui");
+    const uiDir = (0, import_path6.join)(getPluginRoot(), "ui");
     this.app.use("/ui", import_express.default.static(uiDir));
     this.app.get("/", (req, res) => {
-      res.sendFile((0, import_path5.join)(uiDir, "dashboard.html"));
+      res.sendFile((0, import_path6.join)(uiDir, "dashboard.html"));
     });
     this.app.get("/api/health", this.handleHealth.bind(this));
     this.app.get("/api/readiness", this.handleReadiness.bind(this));
@@ -33060,6 +33224,11 @@ ${knowledgeSummary}
         tags,
         source_project
       });
+      try {
+        this.agentsMdGenerator.writeAgentsMd();
+      } catch (error) {
+        logger.warn("SINK", "Failed to update AGENTS-INDEX.md after sink", {}, error);
+      }
       res.json({ success: true, data: asset });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });

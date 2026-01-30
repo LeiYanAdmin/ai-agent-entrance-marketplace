@@ -14,6 +14,7 @@ import { getCompressor, CompressorService } from './ai/compressor.js';
 import { ProcessManager } from './infrastructure/process-manager.js';
 import { SyncEngine } from './sync/sync-engine.js';
 import { SensitiveFilter } from './security/sensitive-filter.js';
+import { AgentsMdGenerator } from './index/agents-md-generator.js';
 import type {
   SessionStartInput,
   UserPromptSubmitInput,
@@ -39,6 +40,7 @@ export class WorkerService {
   private compressor: CompressorService;
   private syncEngine: SyncEngine;
   private sensitiveFilter: SensitiveFilter;
+  private agentsMdGenerator: AgentsMdGenerator;
   private startTime: number;
   private isShuttingDown: boolean = false;
 
@@ -49,6 +51,7 @@ export class WorkerService {
     this.compressor = getCompressor();
     this.syncEngine = new SyncEngine(this.store);
     this.sensitiveFilter = new SensitiveFilter();
+    this.agentsMdGenerator = new AgentsMdGenerator(this.store);
     this.startTime = Date.now();
 
     this.setupMiddleware();
@@ -722,6 +725,13 @@ export class WorkerService {
         tags,
         source_project,
       });
+
+      // Update AGENTS-INDEX.md after sinking asset
+      try {
+        this.agentsMdGenerator.writeAgentsMd();
+      } catch (error) {
+        logger.warn('SINK', 'Failed to update AGENTS-INDEX.md after sink', {}, error as Error);
+      }
 
       res.json({ success: true, data: asset });
     } catch (error) {

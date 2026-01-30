@@ -6,6 +6,7 @@ import { GitOperations } from './git-operations.js';
 import { MarkdownParser } from './markdown-parser.js';
 import { IndexGenerator } from './index-generator.js';
 import { DatabaseStore } from '../database/store.js';
+import { AgentsMdGenerator } from '../index/agents-md-generator.js';
 import { logger } from '../../utils/logger.js';
 import type {
   KnowledgeAssetInput,
@@ -17,11 +18,13 @@ import type {
 export class SyncEngine {
   private git: GitOperations;
   private store: DatabaseStore;
+  private agentsMdGenerator: AgentsMdGenerator;
   private initialized: boolean = false;
 
   constructor(store: DatabaseStore, repoPath?: string) {
     this.git = new GitOperations(repoPath);
     this.store = store;
+    this.agentsMdGenerator = new AgentsMdGenerator(store);
   }
 
   getGit(): GitOperations {
@@ -121,12 +124,21 @@ export class SyncEngine {
 
     logger.info('SYNC', `Pulled ${imported} assets from L2`);
 
-    return this.store.createSyncLog({
+    const syncLog = this.store.createSyncLog({
       direction: 'pull',
       git_commit_sha: currentSha,
       status: 'success',
       message: `Imported ${imported} assets from ${changedFiles.length} changed files`,
     });
+
+    // Update AGENTS-INDEX.md after successful pull
+    try {
+      this.agentsMdGenerator.writeAgentsMd();
+    } catch (error) {
+      logger.warn('SYNC', 'Failed to update AGENTS-INDEX.md after pull', {}, error as Error);
+    }
+
+    return syncLog;
   }
 
   /**
@@ -243,7 +255,7 @@ export class SyncEngine {
       files
     );
 
-    return this.store.createSyncLog({
+    const syncLog = this.store.createSyncLog({
       direction: 'push',
       git_commit_sha: commitResult.commitSha,
       status: commitResult.success ? 'success' : 'failed',
@@ -251,6 +263,17 @@ export class SyncEngine {
         ? `Pushed ${pushed} assets to L2`
         : commitResult.error || 'Batch push failed',
     });
+
+    // Update AGENTS-INDEX.md after successful push
+    if (commitResult.success) {
+      try {
+        this.agentsMdGenerator.writeAgentsMd();
+      } catch (error) {
+        logger.warn('SYNC', 'Failed to update AGENTS-INDEX.md after push', {}, error as Error);
+      }
+    }
+
+    return syncLog;
   }
 
   /**
