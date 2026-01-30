@@ -232,7 +232,7 @@ export class SearchService {
       offset?: number;
       orderBy?: 'relevance' | 'date_desc' | 'date_asc';
     } = {}
-  ): SearchResult<KnowledgeAssetRow & { rank?: number }> {
+  ): SearchResult<KnowledgeAssetRow & { rank?: number; score?: number; snippet?: string }> {
     const db = this.getDb();
     const { product_line, type, limit = 20, offset = 0, orderBy = 'relevance' } = options;
 
@@ -272,7 +272,19 @@ export class SearchService {
 
     const rows = db.prepare(sql).all(...params) as (KnowledgeAssetRow & { rank: number })[];
     const hasMore = rows.length > limit;
-    const items = hasMore ? rows.slice(0, limit) : rows;
+    const rawItems = hasMore ? rows.slice(0, limit) : rows;
+
+    // Enhance items with score and snippet
+    const items = rawItems.map(item => {
+      // Convert FTS5 rank to normalized score (0-1, higher is better)
+      // FTS5 rank is negative, closer to 0 is more relevant
+      const score = this.normalizeRank(item.rank);
+
+      // Extract snippet from content
+      const snippet = this.extractSnippet(item.content, query);
+
+      return { ...item, score, snippet };
+    });
 
     const countSQL = `
       SELECT COUNT(*) as total
@@ -285,6 +297,58 @@ export class SearchService {
     const { total } = db.prepare(countSQL).get(...countParams) as { total: number };
 
     return { items, total, hasMore };
+  }
+
+  /**
+   * Normalize FTS5 rank to 0-1 score (higher is better)
+   * FTS5 rank is negative, closer to 0 is more relevant
+   */
+  private normalizeRank(rank: number): number {
+    // Typical FTS5 rank range is -1 to -100+
+    // Convert to 0-1 scale where 1 is most relevant
+    const absRank = Math.abs(rank);
+    const normalized = 1 / (1 + absRank * 0.1); // Sigmoid-like normalization
+    return parseFloat(normalized.toFixed(2));
+  }
+
+  /**
+   * Extract snippet from content around matching keywords
+   * Returns ±50 characters context around first match
+   */
+  private extractSnippet(content: string, query: string, contextLength: number = 50): string {
+    if (!content || !query) return '';
+
+    // Split query into keywords
+    const keywords = query.toLowerCase().split(/\s+/).filter(k => k.length > 2);
+    if (keywords.length === 0) return content.substring(0, 100) + '...';
+
+    const lowerContent = content.toLowerCase();
+
+    // Find first keyword match
+    let bestMatch = -1;
+    for (const keyword of keywords) {
+      const index = lowerContent.indexOf(keyword);
+      if (index !== -1 && (bestMatch === -1 || index < bestMatch)) {
+        bestMatch = index;
+      }
+    }
+
+    if (bestMatch === -1) {
+      // No match found, return beginning
+      return content.substring(0, 100) + '...';
+    }
+
+    // Extract context around match
+    const start = Math.max(0, bestMatch - contextLength);
+    const end = Math.min(content.length, bestMatch + contextLength);
+
+    let snippet = content.substring(start, end);
+
+    // Add ellipsis
+    if (start > 0) snippet = '...' + snippet;
+    if (end < content.length) snippet = snippet + '...';
+
+    return snippet.trim();
   }
 
   getAssetStats(productLine?: string): {

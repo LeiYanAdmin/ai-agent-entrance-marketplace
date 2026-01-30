@@ -30996,7 +30996,12 @@ var SearchService = class {
     params.push(limit + 1, offset);
     const rows = db.prepare(sql).all(...params);
     const hasMore = rows.length > limit;
-    const items = hasMore ? rows.slice(0, limit) : rows;
+    const rawItems = hasMore ? rows.slice(0, limit) : rows;
+    const items = rawItems.map((item) => {
+      const score = this.normalizeRank(item.rank);
+      const snippet = this.extractSnippet(item.content, query);
+      return { ...item, score, snippet };
+    });
     const countSQL = `
       SELECT COUNT(*) as total
       FROM knowledge_assets ka
@@ -31007,6 +31012,41 @@ var SearchService = class {
     const countParams = [query, ...params.slice(1, -2)];
     const { total } = db.prepare(countSQL).get(...countParams);
     return { items, total, hasMore };
+  }
+  /**
+   * Normalize FTS5 rank to 0-1 score (higher is better)
+   * FTS5 rank is negative, closer to 0 is more relevant
+   */
+  normalizeRank(rank) {
+    const absRank = Math.abs(rank);
+    const normalized = 1 / (1 + absRank * 0.1);
+    return parseFloat(normalized.toFixed(2));
+  }
+  /**
+   * Extract snippet from content around matching keywords
+   * Returns ±50 characters context around first match
+   */
+  extractSnippet(content, query, contextLength = 50) {
+    if (!content || !query) return "";
+    const keywords = query.toLowerCase().split(/\s+/).filter((k) => k.length > 2);
+    if (keywords.length === 0) return content.substring(0, 100) + "...";
+    const lowerContent = content.toLowerCase();
+    let bestMatch = -1;
+    for (const keyword of keywords) {
+      const index = lowerContent.indexOf(keyword);
+      if (index !== -1 && (bestMatch === -1 || index < bestMatch)) {
+        bestMatch = index;
+      }
+    }
+    if (bestMatch === -1) {
+      return content.substring(0, 100) + "...";
+    }
+    const start = Math.max(0, bestMatch - contextLength);
+    const end = Math.min(content.length, bestMatch + contextLength);
+    let snippet = content.substring(start, end);
+    if (start > 0) snippet = "..." + snippet;
+    if (end < content.length) snippet = snippet + "...";
+    return snippet.trim();
   }
   getAssetStats(productLine) {
     const db = this.getDb();
