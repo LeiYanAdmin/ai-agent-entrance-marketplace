@@ -13,7 +13,7 @@
     "restart": "node plugin/scripts/worker-cli.js restart",
     "status": "node plugin/scripts/worker-cli.js status",
     "test": "node --test src/**/*.test.ts",
-    "sync": "cp -r plugin/* ~/.claude/plugins/marketplaces/ai-agent-entrance/plugin/"
+    "sync-plugin": "cp -r plugins/ai-agent-entrance/* ~/.claude/plugins/marketplaces/ai-agent-entrance-marketplace/plugins/ai-agent-entrance/ && cp -r plugins/ai-agent-entrance/* ~/.claude/plugins/cache/ai-agent-entrance-marketplace/ai-agent-entrance/2.2.0/"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
