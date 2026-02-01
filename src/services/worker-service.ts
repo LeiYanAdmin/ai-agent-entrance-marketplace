@@ -518,8 +518,21 @@ ${pendingItems}
       }
       sections.push(toolsSection);
 
-      // ========== 7. Router Activation Notice ==========
-      sections.push(`**智能路由已激活** - 我会根据你的需求自动推荐最佳开发流程。`);
+      // ========== 7. Router Activation Protocol ==========
+      sections.push(`## 智能路由协议
+
+**必须执行**：收到用户第一个问题时，使用 \`ai-agent-entrance:agent-router\` skill 进行路由分析。
+
+路由规则摘要：
+| 任务类型 | 推荐工具 |
+|---------|---------|
+| 新项目完整开发 | BMAD |
+| 老项目优化/重构 | OpenSpec |
+| 严格 TDD | Superpowers |
+| 需求明确的功能 | SpecKit |
+| Bug 修复/小改动 | Plan 模式 |
+
+**Superpowers 优先**：如已安装 Superpowers，所有开发任务优先使用 Superpowers 流程。`);
 
       // Combine all sections
       const context = `<ai-agent-entrance>\n\n${sections.join('\n\n')}\n\n</ai-agent-entrance>`;
