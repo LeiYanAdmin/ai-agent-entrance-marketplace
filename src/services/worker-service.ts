@@ -5,7 +5,9 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer, Server as HttpServer } from 'http';
 import { join } from 'path';
-import { getWorkerPort, getWorkerHost, ensureDataDir, getPluginRoot, getL2RepoPath } from '../shared/config.js';
+import { existsSync, readFileSync } from 'fs';
+import { homedir } from 'os';
+import { getWorkerPort, getWorkerHost, ensureDataDir, getPluginRoot, getL2RepoPath, getDataDir } from '../shared/config.js';
 import { logger } from '../utils/logger.js';
 import { DatabaseStore, getStore } from './database/store.js';
 import { SearchService } from './database/search.js';
@@ -421,25 +423,55 @@ export class WorkerService {
       // Get recent observations
       const observations = this.store.getRecentObservations(project, limit);
 
-      // Format context
-      let context = `<ai-agent-entrance>\n\n**智能路由已激活** - 我会根据你的需求自动推荐最佳开发流程。\n\n`;
+      // Build context with all sections
+      const sections: string[] = [];
 
-      // Recent activity
+      // ========== 1. Retrieval-First Policy ==========
+      sections.push(`┌─────────────────────────────────────────────────────┐
+│ RETRIEVAL-FIRST POLICY                              │
+└─────────────────────────────────────────────────────┘
+
+**CRITICAL: Prefer Retrieval-Led Reasoning**
+
+For ANY task involving code, architecture, or technical decisions:
+
+1. **ALWAYS check knowledge index FIRST** before relying on pre-trained knowledge
+2. **Use three-layer strategy** for optimal retrieval:
+   - L0: Scan the knowledge index (already in context)
+   - L1: Use search_knowledge() for cross-validation when needed
+   - L2: Use get_asset() to retrieve full content
+3. **Prefer documented experience** over general best practices
+
+**Why?** The knowledge base contains team-specific pitfalls and proven solutions that general models don't know.`);
+
+      // ========== 2. AGENTS-INDEX.md ==========
+      const agentsIndexPath = join(getDataDir(), 'AGENTS-INDEX.md');
+      if (existsSync(agentsIndexPath)) {
+        try {
+          const agentsIndex = readFileSync(agentsIndexPath, 'utf-8');
+          if (agentsIndex.trim()) {
+            sections.push(`## 知识库索引\n\n${agentsIndex}`);
+          }
+        } catch (err) {
+          logger.warn('CONTEXT', 'Failed to read AGENTS-INDEX.md', {}, err as Error);
+        }
+      }
+
+      // ========== 3. Recent Activity ==========
       if (observations.length > 0) {
-        context += `## 最近活动\n\n| 时间 | 类型 | 标题 |\n|-----|------|-----|\n`;
+        let activitySection = `## 最近活动\n\n| 时间 | 类型 | 标题 |\n|-----|------|-----|\n`;
         for (const obs of observations.slice(0, 10)) {
           const time = new Date(obs.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
           const typeEmoji = this.getTypeEmoji(obs.type);
-          context += `| ${time} | ${typeEmoji} | ${obs.title} |\n`;
+          activitySection += `| ${time} | ${typeEmoji} | ${obs.title} |\n`;
         }
-        context += '\n';
+        sections.push(activitySection);
       }
 
-      // Knowledge summary
+      // ========== 4. Knowledge Summary (L2 Sync) ==========
       try {
         const autoSync = this.store.getConfigValue('AUTO_SYNC_ON_SESSION_START');
         if (autoSync === 'true') {
-          // Non-blocking sync pull
           this.syncEngine.pullFromL2().catch(err => {
             logger.warn('CONTEXT', `Auto-sync pull failed: ${(err as Error).message}`);
           });
@@ -447,25 +479,58 @@ export class WorkerService {
 
         const knowledgeSummary = this.syncEngine.getKnowledgeSummary();
         if (knowledgeSummary && knowledgeSummary !== '知识库为空') {
-          context += `## 知识库\n${knowledgeSummary}\n\n`;
+          sections.push(`## 知识库摘要\n${knowledgeSummary}`);
         }
       } catch {
         // Sync engine may not be initialized yet
       }
 
-      // Installed tools
-      context += `## 已安装工具\n`;
-      if (installedTools.length > 0) {
-        context += installedTools.map(t => `- ${t} ✅`).join('\n');
-      } else {
-        context += '- 无已安装的开发工具';
+      // ========== 5. Pending Knowledge Reminder ==========
+      const pendingFile = join(getDataDir(), 'pending-sink.json');
+      if (existsSync(pendingFile)) {
+        try {
+          const pendingData = JSON.parse(readFileSync(pendingFile, 'utf-8'));
+          if (pendingData.items && pendingData.items.length > 0) {
+            const pendingCount = pendingData.items.length;
+            const pendingItems = pendingData.items
+              .slice(0, 5)
+              .map((item: { type: string; summary: string }) => `• ${item.type}: ${item.summary}`)
+              .join('\n');
+            sections.push(`## 待沉淀知识提醒
+
+🔔 **上次会话有 ${pendingCount} 条知识待沉淀：**
+
+${pendingItems}
+
+输入 \`/knowledge\` 立即沉淀，或输入 \`/knowledge skip\` 跳过。`);
+          }
+        } catch {
+          // Invalid JSON or missing items
+        }
       }
-      context += '\n\n</ai-agent-entrance>';
+
+      // ========== 6. Installed Tools ==========
+      let toolsSection = `## 已安装工具\n`;
+      if (installedTools.length > 0) {
+        toolsSection += installedTools.map(t => `- ${t} ✅`).join('\n');
+      } else {
+        toolsSection += '- 无已安装的开发工具';
+      }
+      sections.push(toolsSection);
+
+      // ========== 7. Router Activation Notice ==========
+      sections.push(`**智能路由已激活** - 我会根据你的需求自动推荐最佳开发流程。`);
+
+      // Combine all sections
+      const context = `<ai-agent-entrance>\n\n${sections.join('\n\n')}\n\n</ai-agent-entrance>`;
 
       res.json({
         continue: true,
         suppressOutput: false,
-        hookSpecificOutput: context,
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: context,
+        },
       });
     } catch (error) {
       logger.error('CONTEXT', 'Inject failed', {}, error as Error);

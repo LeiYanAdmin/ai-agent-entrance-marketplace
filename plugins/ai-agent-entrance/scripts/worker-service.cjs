@@ -29850,6 +29850,7 @@ module.exports = __toCommonJS(worker_service_exports);
 var import_express = __toESM(require_express2(), 1);
 var import_http = require("http");
 var import_path6 = require("path");
+var import_fs7 = require("fs");
 
 // src/shared/config.ts
 var import_fs = require("fs");
@@ -33001,13 +33002,38 @@ var WorkerService = class {
       const limit = parseInt(req.query.limit || "20", 10);
       const installedTools = await RoutingService.getInstalledTools();
       const observations = this.store.getRecentObservations(project, limit);
-      let context = `<ai-agent-entrance>
+      const sections = [];
+      sections.push(`\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502 RETRIEVAL-FIRST POLICY                              \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
 
-**\u667A\u80FD\u8DEF\u7531\u5DF2\u6FC0\u6D3B** - \u6211\u4F1A\u6839\u636E\u4F60\u7684\u9700\u6C42\u81EA\u52A8\u63A8\u8350\u6700\u4F73\u5F00\u53D1\u6D41\u7A0B\u3002
+**CRITICAL: Prefer Retrieval-Led Reasoning**
 
-`;
+For ANY task involving code, architecture, or technical decisions:
+
+1. **ALWAYS check knowledge index FIRST** before relying on pre-trained knowledge
+2. **Use three-layer strategy** for optimal retrieval:
+   - L0: Scan the knowledge index (already in context)
+   - L1: Use search_knowledge() for cross-validation when needed
+   - L2: Use get_asset() to retrieve full content
+3. **Prefer documented experience** over general best practices
+
+**Why?** The knowledge base contains team-specific pitfalls and proven solutions that general models don't know.`);
+      const agentsIndexPath = (0, import_path6.join)(getDataDir(), "AGENTS-INDEX.md");
+      if ((0, import_fs7.existsSync)(agentsIndexPath)) {
+        try {
+          const agentsIndex = (0, import_fs7.readFileSync)(agentsIndexPath, "utf-8");
+          if (agentsIndex.trim()) {
+            sections.push(`## \u77E5\u8BC6\u5E93\u7D22\u5F15
+
+${agentsIndex}`);
+          }
+        } catch (err) {
+          logger.warn("CONTEXT", "Failed to read AGENTS-INDEX.md", {}, err);
+        }
+      }
       if (observations.length > 0) {
-        context += `## \u6700\u8FD1\u6D3B\u52A8
+        let activitySection = `## \u6700\u8FD1\u6D3B\u52A8
 
 | \u65F6\u95F4 | \u7C7B\u578B | \u6807\u9898 |
 |-----|------|-----|
@@ -33015,10 +33041,10 @@ var WorkerService = class {
         for (const obs of observations.slice(0, 10)) {
           const time = new Date(obs.created_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
           const typeEmoji = this.getTypeEmoji(obs.type);
-          context += `| ${time} | ${typeEmoji} | ${obs.title} |
+          activitySection += `| ${time} | ${typeEmoji} | ${obs.title} |
 `;
         }
-        context += "\n";
+        sections.push(activitySection);
       }
       try {
         const autoSync = this.store.getConfigValue("AUTO_SYNC_ON_SESSION_START");
@@ -33029,25 +33055,50 @@ var WorkerService = class {
         }
         const knowledgeSummary = this.syncEngine.getKnowledgeSummary();
         if (knowledgeSummary && knowledgeSummary !== "\u77E5\u8BC6\u5E93\u4E3A\u7A7A") {
-          context += `## \u77E5\u8BC6\u5E93
-${knowledgeSummary}
-
-`;
+          sections.push(`## \u77E5\u8BC6\u5E93\u6458\u8981
+${knowledgeSummary}`);
         }
       } catch {
       }
-      context += `## \u5DF2\u5B89\u88C5\u5DE5\u5177
+      const pendingFile = (0, import_path6.join)(getDataDir(), "pending-sink.json");
+      if ((0, import_fs7.existsSync)(pendingFile)) {
+        try {
+          const pendingData = JSON.parse((0, import_fs7.readFileSync)(pendingFile, "utf-8"));
+          if (pendingData.items && pendingData.items.length > 0) {
+            const pendingCount = pendingData.items.length;
+            const pendingItems = pendingData.items.slice(0, 5).map((item) => `\u2022 ${item.type}: ${item.summary}`).join("\n");
+            sections.push(`## \u5F85\u6C89\u6DC0\u77E5\u8BC6\u63D0\u9192
+
+\u{1F514} **\u4E0A\u6B21\u4F1A\u8BDD\u6709 ${pendingCount} \u6761\u77E5\u8BC6\u5F85\u6C89\u6DC0\uFF1A**
+
+${pendingItems}
+
+\u8F93\u5165 \`/knowledge\` \u7ACB\u5373\u6C89\u6DC0\uFF0C\u6216\u8F93\u5165 \`/knowledge skip\` \u8DF3\u8FC7\u3002`);
+          }
+        } catch {
+        }
+      }
+      let toolsSection = `## \u5DF2\u5B89\u88C5\u5DE5\u5177
 `;
       if (installedTools.length > 0) {
-        context += installedTools.map((t) => `- ${t} \u2705`).join("\n");
+        toolsSection += installedTools.map((t) => `- ${t} \u2705`).join("\n");
       } else {
-        context += "- \u65E0\u5DF2\u5B89\u88C5\u7684\u5F00\u53D1\u5DE5\u5177";
+        toolsSection += "- \u65E0\u5DF2\u5B89\u88C5\u7684\u5F00\u53D1\u5DE5\u5177";
       }
-      context += "\n\n</ai-agent-entrance>";
+      sections.push(toolsSection);
+      sections.push(`**\u667A\u80FD\u8DEF\u7531\u5DF2\u6FC0\u6D3B** - \u6211\u4F1A\u6839\u636E\u4F60\u7684\u9700\u6C42\u81EA\u52A8\u63A8\u8350\u6700\u4F73\u5F00\u53D1\u6D41\u7A0B\u3002`);
+      const context = `<ai-agent-entrance>
+
+${sections.join("\n\n")}
+
+</ai-agent-entrance>`;
       res.json({
         continue: true,
         suppressOutput: false,
-        hookSpecificOutput: context
+        hookSpecificOutput: {
+          hookEventName: "SessionStart",
+          additionalContext: context
+        }
       });
     } catch (error) {
       logger.error("CONTEXT", "Inject failed", {}, error);
