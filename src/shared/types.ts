@@ -169,7 +169,7 @@ export interface UserPromptSubmitInput extends HookInput {
 
 export interface PostToolUseInput extends HookInput {
   tool_name: string;
-  tool_input: string;
+  tool_input: string | object;  // Claude Code sends tool parameters as object
   tool_output: string;
   prompt_number?: number;
 }

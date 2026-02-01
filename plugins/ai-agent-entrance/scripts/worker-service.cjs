@@ -31441,8 +31441,10 @@ var CompressorService = class {
   async compressToolCall(toolName, toolInput, toolOutput, project) {
     try {
       const client = this.getClient();
-      const truncatedOutput = toolOutput.length > 2e3 ? toolOutput.slice(0, 2e3) + "...[truncated]" : toolOutput;
-      const prompt = COMPRESSION_PROMPT.replace("{tool_name}", toolName).replace("{tool_input}", toolInput).replace("{tool_output}", truncatedOutput).replace("{project}", project);
+      const inputStr = typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput);
+      const outputStr = toolOutput == null ? "" : String(toolOutput);
+      const truncatedOutput = outputStr.length > 2e3 ? outputStr.slice(0, 2e3) + "...[truncated]" : outputStr;
+      const prompt = COMPRESSION_PROMPT.replace("{tool_name}", toolName).replace("{tool_input}", inputStr).replace("{tool_output}", truncatedOutput).replace("{project}", project);
       const response = await client.messages.create({
         model: this.model,
         max_tokens: 1024,
@@ -31526,8 +31528,9 @@ var CompressorService = class {
       return true;
     }
     if (toolName === "Bash") {
+      const inputStr = toolInput == null ? "" : typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput);
       const simpleCommands = ["ls", "pwd", "which", "echo", "cat"];
-      const inputLower = toolInput.toLowerCase();
+      const inputLower = inputStr.toLowerCase();
       for (const cmd of simpleCommands) {
         if (inputLower.startsWith(cmd) && !inputLower.includes("&&") && !inputLower.includes("|")) {
           return false;

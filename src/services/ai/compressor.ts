@@ -100,19 +100,25 @@ export class CompressorService {
    */
   async compressToolCall(
     toolName: string,
-    toolInput: string,
-    toolOutput: string,
+    toolInput: string | object,
+    toolOutput: string | undefined,
     project: string
   ): Promise<CompressionResult | null> {
     try {
       const client = this.getClient();
 
+      // Normalize input to string
+      const inputStr = typeof toolInput === 'string' ? toolInput : JSON.stringify(toolInput);
+
+      // Normalize output to string
+      const outputStr = toolOutput == null ? '' : String(toolOutput);
+
       // Truncate output if too long
       const truncatedOutput =
-        toolOutput.length > 2000 ? toolOutput.slice(0, 2000) + '...[truncated]' : toolOutput;
+        outputStr.length > 2000 ? outputStr.slice(0, 2000) + '...[truncated]' : outputStr;
 
       const prompt = COMPRESSION_PROMPT.replace('{tool_name}', toolName)
-        .replace('{tool_input}', toolInput)
+        .replace('{tool_input}', inputStr)
         .replace('{tool_output}', truncatedOutput)
         .replace('{project}', project);
 
@@ -203,7 +209,7 @@ export class CompressorService {
   /**
    * Quick check if a tool call is worth compressing
    */
-  shouldCompress(toolName: string, toolInput: string): boolean {
+  shouldCompress(toolName: string, toolInput: string | object | undefined): boolean {
     // Skip trivial tools
     const skipTools = [
       'ListMcpResourcesTool',
@@ -230,8 +236,10 @@ export class CompressorService {
 
     // Skip bash commands that are just exploration
     if (toolName === 'Bash') {
+      // Normalize input to string for command analysis
+      const inputStr = toolInput == null ? '' : (typeof toolInput === 'string' ? toolInput : JSON.stringify(toolInput));
       const simpleCommands = ['ls', 'pwd', 'which', 'echo', 'cat'];
-      const inputLower = toolInput.toLowerCase();
+      const inputLower = inputStr.toLowerCase();
       for (const cmd of simpleCommands) {
         if (inputLower.startsWith(cmd) && !inputLower.includes('&&') && !inputLower.includes('|')) {
           return false;
