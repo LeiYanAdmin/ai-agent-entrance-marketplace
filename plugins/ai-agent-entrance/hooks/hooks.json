@@ -16,12 +16,8 @@
                         "timeout": 60
                     },
                     {
-                        "type": "delay",
-                        "delayMs": 2000
-                    },
-                    {
                         "type": "command",
-                        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/worker-cli.cjs\" hook context",
+                        "command": "sleep 2 && node \"${CLAUDE_PLUGIN_ROOT}/scripts/worker-cli.cjs\" hook context",
                         "timeout": 60
                     }
                 ]
