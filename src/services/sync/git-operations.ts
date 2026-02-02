@@ -3,10 +3,16 @@
  */
 
 import { execSync } from 'child_process';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { getL2RepoPath } from '../../shared/config.js';
 import { logger } from '../../utils/logger.js';
+
+// 简单的文件锁实现，防止并发 git 操作
+const LOCK_FILE = '.ai-agent-entrance.lock';
+const LOCK_TIMEOUT_MS = 10000; // 10秒锁超时
+const RETRY_DELAY_MS = 100;    // 重试间隔
+const MAX_RETRIES = 50;        // 最大重试次数
 
 export class GitOperations {
   private repoPath: string;
@@ -17,6 +23,88 @@ export class GitOperations {
 
   getRepoPath(): string {
     return this.repoPath;
+  }
+
+  // ============================================================================
+  // 锁机制 - 防止 Git 并发操作冲突
+  // ============================================================================
+
+  /**
+   * 获取操作锁
+   */
+  private acquireLock(): boolean {
+    const lockPath = join(this.repoPath, LOCK_FILE);
+
+    // 检查是否有过期的锁
+    if (existsSync(lockPath)) {
+      try {
+        const lockContent = readFileSync(lockPath, 'utf-8');
+        const lockTime = parseInt(lockContent, 10);
+        if (Date.now() - lockTime > LOCK_TIMEOUT_MS) {
+          // 锁已过期，清理它
+          unlinkSync(lockPath);
+          logger.warn('GIT', 'Cleaned up stale lock file');
+        } else {
+          return false; // 锁还有效，无法获取
+        }
+      } catch {
+        // 无法读取锁文件，尝试删除
+        try { unlinkSync(lockPath); } catch { /* ignore */ }
+      }
+    }
+
+    // 创建新锁
+    try {
+      writeFileSync(lockPath, String(Date.now()), { flag: 'wx' }); // wx = 独占创建
+      return true;
+    } catch {
+      return false; // 另一个进程抢先创建了锁
+    }
+  }
+
+  /**
+   * 释放操作锁
+   */
+  private releaseLock(): void {
+    const lockPath = join(this.repoPath, LOCK_FILE);
+    try {
+      if (existsSync(lockPath)) {
+        unlinkSync(lockPath);
+      }
+    } catch {
+      // 忽略释放锁的错误
+    }
+  }
+
+  /**
+   * 等待并获取锁（带重试）
+   */
+  private async waitForLock(): Promise<boolean> {
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      if (this.acquireLock()) {
+        return true;
+      }
+      // 等待后重试，使用指数退避
+      const delay = RETRY_DELAY_MS * Math.min(Math.pow(1.5, i), 10);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    logger.error('GIT', `Failed to acquire lock after ${MAX_RETRIES} retries`);
+    return false;
+  }
+
+  /**
+   * 在锁保护下执行 Git 操作
+   */
+  private async withLock<T>(operation: () => T): Promise<T> {
+    const acquired = await this.waitForLock();
+    if (!acquired) {
+      throw new Error('Could not acquire git operation lock');
+    }
+    try {
+      return operation();
+    } finally {
+      this.releaseLock();
+    }
   }
 
   /**
@@ -187,14 +275,14 @@ export class GitOperations {
   }
 
   /**
-   * Add a remote URL
+   * Add a remote URL (带锁保护和重试)
    */
   setRemote(url: string): void {
     try {
       if (this.hasRemote()) {
-        this.execInRepo(`git remote set-url origin "${url}"`);
+        this.execInRepoWithRetry(`git remote set-url origin "${url}"`);
       } else {
-        this.execInRepo(`git remote add origin "${url}"`);
+        this.execInRepoWithRetry(`git remote add origin "${url}"`);
       }
     } catch (error) {
       logger.error('GIT', 'Set remote failed', {}, error as Error);
@@ -321,5 +409,32 @@ knowledge/
 
   private execInRepo(command: string): string {
     return execSync(command, { cwd: this.repoPath, encoding: 'utf-8', timeout: 30000 });
+  }
+
+  /**
+   * 在仓库中执行命令，带锁冲突重试
+   */
+  private execInRepoWithRetry(command: string, maxRetries = 5): string {
+    const baseDelay = 200;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return this.execInRepo(command);
+      } catch (error) {
+        const errMsg = (error as Error).message;
+        // 检查是否是锁冲突错误
+        if (errMsg.includes('could not lock') || errMsg.includes('.lock') || errMsg.includes('index.lock')) {
+          if (attempt < maxRetries - 1) {
+            const delay = baseDelay * Math.pow(2, attempt);
+            logger.warn('GIT', `Lock conflict, retrying in ${delay}ms`, { command: command.slice(0, 50), attempt });
+            // 同步等待 - 使用 child_process.spawnSync 的 sleep 替代方案
+            execSync(`sleep ${delay / 1000}`, { encoding: 'utf-8' });
+            continue;
+          }
+        }
+        throw error;
+      }
+    }
+    throw new Error(`Failed after ${maxRetries} retries: ${command}`);
   }
 }

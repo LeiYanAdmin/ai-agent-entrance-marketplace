@@ -29863,6 +29863,8 @@ var DEFAULTS = {
   // AI settings
   AI_MODEL: "claude-sonnet-4-5",
   AI_PROVIDER: "anthropic",
+  AI_COMPRESSION_ENABLED: "true",
+  // 设为 'false' 可禁用 AI 压缩功能
   // Database settings
   DATA_DIR: (0, import_path.join)((0, import_os.homedir)(), ".ai-agent-entrance"),
   DB_NAME: "knowledge.db",
@@ -29915,6 +29917,7 @@ function loadSettings() {
         WORKER_HOST: DEFAULTS.WORKER_HOST,
         AI_MODEL: DEFAULTS.AI_MODEL,
         AI_PROVIDER: DEFAULTS.AI_PROVIDER,
+        AI_COMPRESSION_ENABLED: DEFAULTS.AI_COMPRESSION_ENABLED,
         LOG_LEVEL: DEFAULTS.LOG_LEVEL,
         CONTEXT_OBSERVATIONS: DEFAULTS.CONTEXT_OBSERVATIONS,
         CONTEXT_SHOW_ROUTING: DEFAULTS.CONTEXT_SHOW_ROUTING,
@@ -29931,6 +29934,7 @@ function loadSettings() {
       WORKER_HOST: loaded.WORKER_HOST || DEFAULTS.WORKER_HOST,
       AI_MODEL: loaded.AI_MODEL || DEFAULTS.AI_MODEL,
       AI_PROVIDER: loaded.AI_PROVIDER || DEFAULTS.AI_PROVIDER,
+      AI_COMPRESSION_ENABLED: loaded.AI_COMPRESSION_ENABLED ?? DEFAULTS.AI_COMPRESSION_ENABLED,
       LOG_LEVEL: loaded.LOG_LEVEL || DEFAULTS.LOG_LEVEL,
       CONTEXT_OBSERVATIONS: loaded.CONTEXT_OBSERVATIONS || DEFAULTS.CONTEXT_OBSERVATIONS,
       CONTEXT_SHOW_ROUTING: loaded.CONTEXT_SHOW_ROUTING || DEFAULTS.CONTEXT_SHOW_ROUTING,
@@ -29943,6 +29947,7 @@ function loadSettings() {
       WORKER_HOST: DEFAULTS.WORKER_HOST,
       AI_MODEL: DEFAULTS.AI_MODEL,
       AI_PROVIDER: DEFAULTS.AI_PROVIDER,
+      AI_COMPRESSION_ENABLED: DEFAULTS.AI_COMPRESSION_ENABLED,
       LOG_LEVEL: DEFAULTS.LOG_LEVEL,
       CONTEXT_OBSERVATIONS: DEFAULTS.CONTEXT_OBSERVATIONS,
       CONTEXT_SHOW_ROUTING: DEFAULTS.CONTEXT_SHOW_ROUTING,
@@ -29954,6 +29959,9 @@ function loadSettings() {
 function getSetting(key) {
   const settings = loadSettings();
   return settings[key] || DEFAULTS[key];
+}
+function getSettingBool(key) {
+  return getSetting(key).toLowerCase() === "true";
 }
 function ensureDataDir() {
   const dataDir = getDataDir();
@@ -31427,22 +31435,97 @@ Respond with ONLY the JSON object, no markdown or explanation.`;
 var CompressorService = class {
   client = null;
   model;
+  // 优雅降级状态
+  aiEnabled = true;
+  disabledReason = null;
+  warningLogged = false;
   constructor() {
     this.model = getSetting("AI_MODEL");
+    if (!getSettingBool("AI_COMPRESSION_ENABLED")) {
+      this.disableAI("config_disabled");
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      this.disableAI("no_api_key");
+    }
+  }
+  /**
+   * 检查 AI 压缩是否可用
+   */
+  isEnabled() {
+    return this.aiEnabled;
+  }
+  /**
+   * 获取禁用原因
+   */
+  getDisabledReason() {
+    return this.disabledReason;
+  }
+  /**
+   * 禁用 AI 功能（优雅降级）
+   */
+  disableAI(reason) {
+    if (this.aiEnabled) {
+      this.aiEnabled = false;
+      this.disabledReason = reason;
+      if (!this.warningLogged) {
+        this.warningLogged = true;
+        const messages = {
+          no_api_key: "ANTHROPIC_API_KEY \u672A\u8BBE\u7F6E\uFF0CAI \u538B\u7F29\u5DF2\u7981\u7528",
+          credit_exhausted: "API \u989D\u5EA6\u8017\u5C3D\uFF0CAI \u538B\u7F29\u5DF2\u7981\u7528\uFF08\u5176\u4ED6\u529F\u80FD\u6B63\u5E38\uFF09",
+          invalid_api_key: "API Key \u65E0\u6548\uFF0CAI \u538B\u7F29\u5DF2\u7981\u7528",
+          config_disabled: "AI \u538B\u7F29\u5DF2\u901A\u8FC7\u914D\u7F6E\u7981\u7528",
+          rate_limited: "API \u901F\u7387\u9650\u5236\uFF0CAI \u538B\u7F29\u6682\u65F6\u7981\u7528",
+          unknown_error: "API \u8C03\u7528\u5931\u8D25\uFF0CAI \u538B\u7F29\u5DF2\u7981\u7528"
+        };
+        logger.warn("COMPRESS", messages[reason]);
+      }
+    }
+  }
+  /**
+   * 检测 API 错误类型并决定是否禁用
+   */
+  handleAPIError(error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorString = JSON.stringify(error);
+    if (errorMessage.includes("credit balance is too low") || errorMessage.includes("insufficient_quota") || errorString.includes("credit balance")) {
+      this.disableAI("credit_exhausted");
+      return;
+    }
+    if (errorMessage.includes("invalid_api_key") || errorMessage.includes("authentication") || errorMessage.includes("401")) {
+      this.disableAI("invalid_api_key");
+      return;
+    }
+    if (errorMessage.includes("rate_limit") || errorMessage.includes("429")) {
+      this.disableAI("rate_limited");
+      return;
+    }
+    logger.debug("COMPRESS", "API call failed (will retry next time)", { error: errorMessage });
   }
   getClient() {
+    if (!this.aiEnabled) {
+      return null;
+    }
     if (!this.client) {
-      this.client = new import_sdk.default();
+      try {
+        this.client = new import_sdk.default();
+      } catch (error) {
+        this.handleAPIError(error);
+        return null;
+      }
     }
     return this.client;
   }
   /**
    * Compress a tool call result into structured observation
+   * 优雅降级：API 不可用时返回 null，不影响其他功能
    */
   async compressToolCall(toolName, toolInput, toolOutput, project) {
+    const client = this.getClient();
+    if (!client) {
+      return null;
+    }
     try {
-      const client = this.getClient();
-      const inputStr = typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput);
+      const inputStr = toolInput == null ? "" : typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput);
       const outputStr = toolOutput == null ? "" : String(toolOutput);
       const truncatedOutput = outputStr.length > 2e3 ? outputStr.slice(0, 2e3) + "...[truncated]" : outputStr;
       const prompt = COMPRESSION_PROMPT.replace("{tool_name}", toolName).replace("{tool_input}", inputStr).replace("{tool_output}", truncatedOutput).replace("{project}", project);
@@ -31462,16 +31545,23 @@ var CompressorService = class {
       });
       return result;
     } catch (error) {
-      logger.error("COMPRESS", "Failed to compress tool call", { toolName }, error);
+      this.handleAPIError(error);
+      if (this.aiEnabled) {
+        logger.error("COMPRESS", "Failed to compress tool call", { toolName }, error);
+      }
       return null;
     }
   }
   /**
    * Generate session summary
+   * 优雅降级：API 不可用时返回 null，不影响其他功能
    */
   async generateSummary(project, userPrompt, observations) {
+    const client = this.getClient();
+    if (!client) {
+      return null;
+    }
     try {
-      const client = this.getClient();
       const obsText = observations.map((o, i) => `${i + 1}. [${o.type}] ${o.title}: ${o.narrative || "N/A"}`).join("\n");
       const prompt = SUMMARY_PROMPT.replace("{project}", project).replace("{user_prompt}", userPrompt || "Unknown").replace("{observations}", obsText || "No observations recorded");
       const response = await client.messages.create({
@@ -31502,7 +31592,10 @@ var CompressorService = class {
         sinkable_knowledge: sinkableKnowledge
       };
     } catch (error) {
-      logger.error("COMPRESS", "Failed to generate summary", { project }, error);
+      this.handleAPIError(error);
+      if (this.aiEnabled) {
+        logger.error("COMPRESS", "Failed to generate summary", { project }, error);
+      }
       return null;
     }
   }
@@ -31798,6 +31891,10 @@ var ProcessManager = class {
 var import_child_process2 = require("child_process");
 var import_fs5 = require("fs");
 var import_path4 = require("path");
+var LOCK_FILE = ".ai-agent-entrance.lock";
+var LOCK_TIMEOUT_MS = 1e4;
+var RETRY_DELAY_MS = 100;
+var MAX_RETRIES = 50;
 var GitOperations = class {
   repoPath;
   constructor(repoPath) {
@@ -31805,6 +31902,78 @@ var GitOperations = class {
   }
   getRepoPath() {
     return this.repoPath;
+  }
+  // ============================================================================
+  // 锁机制 - 防止 Git 并发操作冲突
+  // ============================================================================
+  /**
+   * 获取操作锁
+   */
+  acquireLock() {
+    const lockPath = (0, import_path4.join)(this.repoPath, LOCK_FILE);
+    if ((0, import_fs5.existsSync)(lockPath)) {
+      try {
+        const lockContent = (0, import_fs5.readFileSync)(lockPath, "utf-8");
+        const lockTime = parseInt(lockContent, 10);
+        if (Date.now() - lockTime > LOCK_TIMEOUT_MS) {
+          (0, import_fs5.unlinkSync)(lockPath);
+          logger.warn("GIT", "Cleaned up stale lock file");
+        } else {
+          return false;
+        }
+      } catch {
+        try {
+          (0, import_fs5.unlinkSync)(lockPath);
+        } catch {
+        }
+      }
+    }
+    try {
+      (0, import_fs5.writeFileSync)(lockPath, String(Date.now()), { flag: "wx" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * 释放操作锁
+   */
+  releaseLock() {
+    const lockPath = (0, import_path4.join)(this.repoPath, LOCK_FILE);
+    try {
+      if ((0, import_fs5.existsSync)(lockPath)) {
+        (0, import_fs5.unlinkSync)(lockPath);
+      }
+    } catch {
+    }
+  }
+  /**
+   * 等待并获取锁（带重试）
+   */
+  async waitForLock() {
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      if (this.acquireLock()) {
+        return true;
+      }
+      const delay = RETRY_DELAY_MS * Math.min(Math.pow(1.5, i), 10);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    logger.error("GIT", `Failed to acquire lock after ${MAX_RETRIES} retries`);
+    return false;
+  }
+  /**
+   * 在锁保护下执行 Git 操作
+   */
+  async withLock(operation) {
+    const acquired = await this.waitForLock();
+    if (!acquired) {
+      throw new Error("Could not acquire git operation lock");
+    }
+    try {
+      return operation();
+    } finally {
+      this.releaseLock();
+    }
   }
   /**
    * Clone a remote repo or init a local one
@@ -31956,14 +32125,14 @@ var GitOperations = class {
     }
   }
   /**
-   * Add a remote URL
+   * Add a remote URL (带锁保护和重试)
    */
   setRemote(url) {
     try {
       if (this.hasRemote()) {
-        this.execInRepo(`git remote set-url origin "${url}"`);
+        this.execInRepoWithRetry(`git remote set-url origin "${url}"`);
       } else {
-        this.execInRepo(`git remote add origin "${url}"`);
+        this.execInRepoWithRetry(`git remote add origin "${url}"`);
       }
     } catch (error) {
       logger.error("GIT", "Set remote failed", {}, error);
@@ -32076,6 +32245,29 @@ knowledge/
   }
   execInRepo(command) {
     return (0, import_child_process2.execSync)(command, { cwd: this.repoPath, encoding: "utf-8", timeout: 3e4 });
+  }
+  /**
+   * 在仓库中执行命令，带锁冲突重试
+   */
+  execInRepoWithRetry(command, maxRetries = 5) {
+    const baseDelay = 200;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return this.execInRepo(command);
+      } catch (error) {
+        const errMsg = error.message;
+        if (errMsg.includes("could not lock") || errMsg.includes(".lock") || errMsg.includes("index.lock")) {
+          if (attempt < maxRetries - 1) {
+            const delay = baseDelay * Math.pow(2, attempt);
+            logger.warn("GIT", `Lock conflict, retrying in ${delay}ms`, { command: command.slice(0, 50), attempt });
+            (0, import_child_process2.execSync)(`sleep ${delay / 1e3}`, { encoding: "utf-8" });
+            continue;
+          }
+        }
+        throw error;
+      }
+    }
+    throw new Error(`Failed after ${maxRetries} retries: ${command}`);
   }
 };
 

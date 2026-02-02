@@ -1,11 +1,23 @@
 /**
  * AI-powered semantic compression for observations
+ *
+ * 优雅降级：当 API 不可用时（无 Key、额度不足、网络问题），
+ * 自动跳过压缩功能，不影响插件其他功能。
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getSetting } from '../../shared/config.js';
+import { getSetting, getSettingBool } from '../../shared/config.js';
 import { logger } from '../../utils/logger.js';
 import type { CompressionResult, SummaryResult, KnowledgeInput } from '../../shared/types.js';
+
+// API 不可用的原因
+type DisabledReason =
+  | 'no_api_key'           // 未设置 ANTHROPIC_API_KEY
+  | 'credit_exhausted'     // API 额度耗尽
+  | 'invalid_api_key'      // API Key 无效
+  | 'config_disabled'      // 配置禁用
+  | 'rate_limited'         // 速率限制
+  | 'unknown_error';       // 其他错误
 
 // ============================================================================
 // Prompts
@@ -84,33 +96,140 @@ export class CompressorService {
   private client: Anthropic | null = null;
   private model: string;
 
+  // 优雅降级状态
+  private aiEnabled: boolean = true;
+  private disabledReason: DisabledReason | null = null;
+  private warningLogged: boolean = false;
+
   constructor() {
     this.model = getSetting('AI_MODEL');
+
+    // 检查是否通过配置禁用
+    if (!getSettingBool('AI_COMPRESSION_ENABLED')) {
+      this.disableAI('config_disabled');
+    }
+
+    // 检查 API Key 是否存在
+    if (!process.env.ANTHROPIC_API_KEY) {
+      this.disableAI('no_api_key');
+    }
   }
 
-  private getClient(): Anthropic {
+  /**
+   * 检查 AI 压缩是否可用
+   */
+  isEnabled(): boolean {
+    return this.aiEnabled;
+  }
+
+  /**
+   * 获取禁用原因
+   */
+  getDisabledReason(): DisabledReason | null {
+    return this.disabledReason;
+  }
+
+  /**
+   * 禁用 AI 功能（优雅降级）
+   */
+  private disableAI(reason: DisabledReason): void {
+    if (this.aiEnabled) {
+      this.aiEnabled = false;
+      this.disabledReason = reason;
+
+      // 只记录一次警告
+      if (!this.warningLogged) {
+        this.warningLogged = true;
+        const messages: Record<DisabledReason, string> = {
+          no_api_key: 'ANTHROPIC_API_KEY 未设置，AI 压缩已禁用',
+          credit_exhausted: 'API 额度耗尽，AI 压缩已禁用（其他功能正常）',
+          invalid_api_key: 'API Key 无效，AI 压缩已禁用',
+          config_disabled: 'AI 压缩已通过配置禁用',
+          rate_limited: 'API 速率限制，AI 压缩暂时禁用',
+          unknown_error: 'API 调用失败，AI 压缩已禁用',
+        };
+        logger.warn('COMPRESS', messages[reason]);
+      }
+    }
+  }
+
+  /**
+   * 检测 API 错误类型并决定是否禁用
+   */
+  private handleAPIError(error: unknown): void {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorString = JSON.stringify(error);
+
+    // 检测额度耗尽
+    if (
+      errorMessage.includes('credit balance is too low') ||
+      errorMessage.includes('insufficient_quota') ||
+      errorString.includes('credit balance')
+    ) {
+      this.disableAI('credit_exhausted');
+      return;
+    }
+
+    // 检测 Key 无效
+    if (
+      errorMessage.includes('invalid_api_key') ||
+      errorMessage.includes('authentication') ||
+      errorMessage.includes('401')
+    ) {
+      this.disableAI('invalid_api_key');
+      return;
+    }
+
+    // 检测速率限制
+    if (errorMessage.includes('rate_limit') || errorMessage.includes('429')) {
+      this.disableAI('rate_limited');
+      return;
+    }
+
+    // 其他错误：记录但不禁用（可能是临时网络问题）
+    logger.debug('COMPRESS', 'API call failed (will retry next time)', { error: errorMessage });
+  }
+
+  private getClient(): Anthropic | null {
+    // 如果已禁用，返回 null
+    if (!this.aiEnabled) {
+      return null;
+    }
+
     if (!this.client) {
-      this.client = new Anthropic();
+      try {
+        this.client = new Anthropic();
+      } catch (error) {
+        this.handleAPIError(error);
+        return null;
+      }
     }
     return this.client;
   }
 
   /**
    * Compress a tool call result into structured observation
+   * 优雅降级：API 不可用时返回 null，不影响其他功能
    */
   async compressToolCall(
     toolName: string,
-    toolInput: string | object,
+    toolInput: string | object | undefined,
     toolOutput: string | undefined,
     project: string
   ): Promise<CompressionResult | null> {
+    // 优雅降级：如果 AI 已禁用，直接返回 null
+    const client = this.getClient();
+    if (!client) {
+      return null;
+    }
+
     try {
-      const client = this.getClient();
+      // Normalize input to string (handle undefined/null)
+      const inputStr = toolInput == null
+        ? ''
+        : (typeof toolInput === 'string' ? toolInput : JSON.stringify(toolInput));
 
-      // Normalize input to string
-      const inputStr = typeof toolInput === 'string' ? toolInput : JSON.stringify(toolInput);
-
-      // Normalize output to string
+      // Normalize output to string (handle undefined/null)
       const outputStr = toolOutput == null ? '' : String(toolOutput);
 
       // Truncate output if too long
@@ -143,22 +262,33 @@ export class CompressorService {
 
       return result;
     } catch (error) {
-      logger.error('COMPRESS', 'Failed to compress tool call', { toolName }, error as Error);
+      // 检测错误类型，决定是否禁用 AI
+      this.handleAPIError(error);
+
+      // 只在非禁用情况下记录详细错误
+      if (this.aiEnabled) {
+        logger.error('COMPRESS', 'Failed to compress tool call', { toolName }, error as Error);
+      }
       return null;
     }
   }
 
   /**
    * Generate session summary
+   * 优雅降级：API 不可用时返回 null，不影响其他功能
    */
   async generateSummary(
     project: string,
     userPrompt: string,
     observations: Array<{ type: string; title: string; narrative?: string }>
   ): Promise<SummaryResult | null> {
-    try {
-      const client = this.getClient();
+    // 优雅降级：如果 AI 已禁用，直接返回 null
+    const client = this.getClient();
+    if (!client) {
+      return null;
+    }
 
+    try {
       // Format observations
       const obsText = observations
         .map((o, i) => `${i + 1}. [${o.type}] ${o.title}: ${o.narrative || 'N/A'}`)
@@ -201,7 +331,13 @@ export class CompressorService {
         sinkable_knowledge: sinkableKnowledge,
       };
     } catch (error) {
-      logger.error('COMPRESS', 'Failed to generate summary', { project }, error as Error);
+      // 检测错误类型，决定是否禁用 AI
+      this.handleAPIError(error);
+
+      // 只在非禁用情况下记录详细错误
+      if (this.aiEnabled) {
+        logger.error('COMPRESS', 'Failed to generate summary', { project }, error as Error);
+      }
       return null;
     }
   }
